@@ -29,6 +29,7 @@ public class PlanDay extends BaseTimeEntity{
     private String dayName;
     @Column(nullable = false)
     private Integer dayOrder;
+    private String memo;
 
     @OneToMany(mappedBy = "planDay", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("scheduleOrder ASC")

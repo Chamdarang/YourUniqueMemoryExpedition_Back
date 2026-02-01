@@ -75,7 +75,7 @@ public class PlanDayController {
     public ResponseEntity<ApiResponse<Void>> swapPlanDay(
             @AuthenticationPrincipal CustomUserDetails user,
             @RequestBody PlanDaySwapRequest req){
-        planDayService.swapPlan(user.getId(),req);
+        planDayService.swapPlanDay(user.getId(),req);
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 

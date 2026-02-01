@@ -9,6 +9,7 @@ public record PlanDayDetailResponse(
         Long id,
         String dayName,
         Integer dayOrder,
+        String memo,
         List<DayScheduleResponse> schedules
 ) {
     public static PlanDayDetailResponse toDto(PlanDay planDay) {
@@ -16,6 +17,7 @@ public record PlanDayDetailResponse(
                 planDay.getId(),
                 planDay.getDayName(),
                 planDay.getDayOrder(),
+                planDay.getMemo(),
                 planDay.getSchedules().stream()
                         .map(DayScheduleResponse::toDto)
                         .toList()
@@ -26,6 +28,7 @@ public record PlanDayDetailResponse(
                 planDay.getId(),
                 planDay.getDayName(),
                 planDay.getDayOrder(),
+                planDay.getMemo(),
                 schedules
         );
     }

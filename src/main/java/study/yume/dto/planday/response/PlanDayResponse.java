@@ -6,13 +6,15 @@ import study.yume.model.PlanDay;
 public record PlanDayResponse(
         Long id,
         String dayName,
-        Integer dayOrder
+        Integer dayOrder,
+        String memo
 ) {
     public static PlanDayResponse toDto(PlanDay planDay) {
         return new PlanDayResponse(
                 planDay.getId(),
                 planDay.getDayName(),
-                planDay.getDayOrder()
+                planDay.getDayOrder(),
+                planDay.getMemo()
         );
     }
 }

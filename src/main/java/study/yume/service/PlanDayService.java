@@ -84,6 +84,7 @@ public class PlanDayService {
     public PlanDayResponse updatePlanDay(Long userId,Long dayId, PlanDayUpdateRequest req){
         PlanDay planDay = findDayByUserIdAndId(userId,dayId);
         if(req.dayName()!=null) planDay.setDayName(req.dayName());
+        if(req.memo()!=null) planDay.setMemo(req.memo());
         return PlanDayResponse.toDto(planDayRepository.save(planDay));
     }
 
@@ -94,7 +95,7 @@ public class PlanDayService {
         return PlanDayResponse.toDto(planDayRepository.save(planDay));
     }
 
-    public void swapPlan(Long userId, PlanDaySwapRequest req){
+    public void swapPlanDay(Long userId, PlanDaySwapRequest req){
         PlanDay sourceDay = findDayByUserIdAndId(userId,req.sourceDayId());
 
         Plan targetPlan = findPlanByUserIdAndId(userId,req.targetPlanId());

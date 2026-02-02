@@ -1,6 +1,10 @@
 package study.yume.controller;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -38,9 +42,10 @@ public class PlanDayController {
     }
 
     @GetMapping("/independent")
-    public ResponseEntity<ApiResponse<List<PlanDayResponse>>> getAllIndependentDay(
-            @AuthenticationPrincipal CustomUserDetails user ){
-        return ResponseEntity.ok(ApiResponse.success(planDayService.getAllIndependentDay(user.getId())));
+    public ResponseEntity<ApiResponse<Page<PlanDayResponse>>> getAllIndependentDay(
+            @AuthenticationPrincipal CustomUserDetails user,
+            @PageableDefault(sort = "createdAt",direction = Sort.Direction.DESC) Pageable pageable){
+        return ResponseEntity.ok(ApiResponse.success(planDayService.getAllIndependentDay(user.getId(),pageable)));
     }
 
     @GetMapping("/{dayId}")

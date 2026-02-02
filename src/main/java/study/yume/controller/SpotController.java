@@ -1,6 +1,10 @@
 package study.yume.controller;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -13,8 +17,6 @@ import study.yume.dto.spot.response.SpotResponse;
 import study.yume.security.CustomUserDetails;
 import study.yume.service.SpotService;
 
-import java.util.List;
-
 
 @RestController
 @RequestMapping("/api/spots")
@@ -22,25 +24,12 @@ import java.util.List;
 public class SpotController {
     private final SpotService spotService;
 
-    @GetMapping("/FORTEST/GETALLSPOTS")
-    public ResponseEntity<ApiResponse<List<SpotResponse>>> getAllSpots(
-            @AuthenticationPrincipal CustomUserDetails user) {
-        return ResponseEntity.ok(ApiResponse.success(spotService.getAllSpots(user.getId())));
-    }
-
-    //지도에서 검색할때 쓸 용도
     @GetMapping
-    public ResponseEntity<ApiResponse<List<SpotResponse>>> getFilteredSpots(
+    public ResponseEntity<ApiResponse<Page<SpotResponse>>> getFilteredSpots(
             @AuthenticationPrincipal CustomUserDetails user,
-            @ModelAttribute SpotGetFilteredRequest req) {
-        return ResponseEntity.ok(ApiResponse.success(spotService.getFilteredSpots(user.getId(), req)));
-    }
-
-    @GetMapping("/search/{query}")
-    public ResponseEntity<ApiResponse<List<SpotResponse>>> getSpotsByName(
-            @AuthenticationPrincipal CustomUserDetails user,
-            @PathVariable String query) {
-        return ResponseEntity.ok(ApiResponse.success(spotService.getSpotsByName(user.getId(), query)));
+            @ModelAttribute SpotGetFilteredRequest req,
+            @PageableDefault(sort = "createdAt",direction = Sort.Direction.DESC) Pageable pageable) {
+        return ResponseEntity.ok(ApiResponse.success(spotService.getFilteredSpots(user.getId(), req,pageable)));
     }
 
     @GetMapping("/{id}")

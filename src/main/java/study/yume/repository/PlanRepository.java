@@ -1,5 +1,6 @@
 package study.yume.repository;
 
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -13,18 +14,19 @@ import java.util.Optional;
 
 @Repository
 public interface PlanRepository extends JpaRepository<Plan, Long> {
-    List<Plan> findAllByUserId(Long userId);
+    Page<Plan> findAllByUserId(Long userId, Pageable pageable);
     Optional<Plan> findByUserIdAndId(Long userId, Long id);
 
     @Query("SELECT p FROM Plan p WHERE p.userId = :userId " +
             "AND (:from IS NULL OR p.planEndDate >= :from) " +
             "AND (:to IS NULL OR p.planStartDate <= :to) " +
             "AND (COALESCE(:months, NULL) IS NULL OR MONTH(p.planStartDate) IN :months)")
-    List<Plan> findFilteredPlans(
+    Page<Plan> findFilteredPlans(
             @Param("userId") Long userId,
             @Param("from") LocalDate from,
             @Param("to") LocalDate to,
-            @Param("months") List<Integer> months);
+            @Param("months") List<Integer> months,
+            Pageable pageable);
 
     @Query("SELECT p FROM Plan p WHERE p.userId = :userId " +
             "AND p.planStartDate IS NOT NULL " +

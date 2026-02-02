@@ -2,7 +2,9 @@ package study.yume.service;
 
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import study.yume.dto.plan.request.PlanCreateRequest;
@@ -75,22 +77,20 @@ public class PlanService {
     }
 
     @Transactional(readOnly = true)
-    public List<PlanResponse> getAllPlans(Long userId) {
-        return planRepository.findAllByUserId(userId).stream()
-                .map(PlanResponse::toDto)
-                .toList();
+    public Page<PlanResponse> getAllPlans(Long userId, Pageable pageable) {
+        return planRepository.findAllByUserId(userId,pageable)
+                .map(PlanResponse::toDto);
     }
 
     @Transactional(readOnly = true)
-    public List<PlanResponse> getFilteredPlans(Long userId, LocalDate from, LocalDate to, List<Integer> months) {
+    public Page<PlanResponse> getFilteredPlans(Long userId, LocalDate from, LocalDate to, List<Integer> months, Pageable pageable) {
         if (from == null && to == null && (months == null || months.isEmpty())) {
             // 필터가 아예 없는 경우 전체 조회
-            return getAllPlans(userId);
+            return getAllPlans(userId,pageable);
         }
 
-        return planRepository.findFilteredPlans(userId, from, to, months).stream()
-                .map(PlanResponse::toDto)
-                .toList();
+        return planRepository.findFilteredPlans(userId, from, to, months,pageable)
+                .map(PlanResponse::toDto);
     }
 
     public void deletePlanById(Long userId, Long planId) {

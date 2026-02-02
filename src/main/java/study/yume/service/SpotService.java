@@ -6,6 +6,8 @@ import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.Point;
 import org.locationtech.jts.geom.PrecisionModel;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import study.yume.dto.spot.request.SpotCreateRequest;
@@ -61,39 +63,20 @@ public class SpotService {
     }
 
     @Transactional(readOnly = true)
-    public List<SpotResponse> getAllSpots(Long userId) {
-        return spotRepository.findALLByUserId(userId).stream()
-                .map(SpotResponse::toDto)
-                .toList();
-    }
-
-    @Transactional(readOnly = true)
-    public List<SpotResponse> getFilteredSpots(Long userId, SpotGetFilteredRequest req){
-        if(req.lat()!=null && req.lng()!=null && req.radius() !=null){
+    public Page<SpotResponse> getFilteredSpots(Long userId, SpotGetFilteredRequest req, Pageable pageable) {
+        if (req.lat() != null && req.lng() != null && req.radius() != null) {
             Point center = geometryFactory.createPoint(new Coordinate(req.lng(), req.lat()));
-            return spotRepository.findSpotsWithFilters(userId,req.isVisit(),center,req.radius()).stream()
-                    .map(SpotResponse::toDto)
-                    .toList();
-        }else if(req.isVisit()!=null){
-            return spotRepository.findAllByUserIdAndIsVisit(userId,req.isVisit()).stream()
-                    .map(SpotResponse::toDto)
-                    .toList();
-        }else{
-            return getAllSpots(userId);
+            return spotRepository.findSpotsWithFilters(userId, req.isVisit(), req.spotType(), center, req.radius(), pageable)
+                    .map(SpotResponse::toDto);
         }
-
+        return spotRepository.searchMySpots(
+                userId,
+                req.keyword(),
+                req.spotType(),
+                req.isVisit(),
+                pageable
+        ).map(SpotResponse::toDto);
     }
-
-    @Transactional(readOnly = true)
-    public List<SpotResponse> getSpotsByName(Long userId, String query) {
-        if (query == null || query.isBlank()) {
-            return List.of();
-        }
-        return spotRepository.findByUserIdAndSpotNameContains(userId,query).stream()
-                .map(SpotResponse::toDto)
-                .toList();
-    }
-
 
     @Transactional(readOnly = true)
     public SpotDetailResponse getSpotById(Long userId, Long spotId) {

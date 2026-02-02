@@ -7,6 +7,7 @@ public record SpotGetFilteredRequest(
         Double lng,
         Double radius,
         Boolean isVisit,
-        SpotType spotType
+        SpotType spotType,
+        String keyword
 ) {
 }

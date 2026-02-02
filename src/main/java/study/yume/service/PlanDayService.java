@@ -2,6 +2,8 @@ package study.yume.service;
 
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import study.yume.dto.planday.request.PlanDayCreateRequest;
@@ -88,10 +90,18 @@ public class PlanDayService {
         return PlanDayResponse.toDto(planDayRepository.save(planDay));
     }
 
-    public PlanDayResponse detachPlanDay(Long userId,Long dayId){
-        PlanDay planDay = findDayByUserIdAndId(userId,dayId);
+    public PlanDayResponse detachPlanDay(Long userId, Long dayId) {
+        PlanDay planDay = findDayByUserIdAndId(userId, dayId);
+
+        String planName = planDay.getPlan().getPlanName();
+        String currentMemo = (planDay.getMemo() != null) ? planDay.getMemo() : "";
+
+        String updatedMemo = currentMemo + (currentMemo.isEmpty() ? "" : "\n") + "[" + planName + "에서 분리됨]";
+        planDay.setMemo(updatedMemo);
+
         planDay.setPlan(null);
         planDay.setDayOrder(1);
+
         return PlanDayResponse.toDto(planDayRepository.save(planDay));
     }
 
@@ -145,10 +155,9 @@ public class PlanDayService {
     }
 
     @Transactional(readOnly = true)
-    public List<PlanDayResponse> getAllIndependentDay(Long userId){
-        return planDayRepository.findAllByUserIdAndPlanIsNull(userId).stream()
-                .map(PlanDayResponse::toDto)
-                .toList();
+    public Page<PlanDayResponse> getAllIndependentDay(Long userId, Pageable pageable){
+        return planDayRepository.findAllByUserIdAndPlanIsNull(userId,pageable)
+                .map(PlanDayResponse::toDto);
     }
 
     /**

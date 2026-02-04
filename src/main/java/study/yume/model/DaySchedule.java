@@ -40,6 +40,7 @@ public class DaySchedule extends BaseTimeEntity {
     private LocalTime endTime;
 
 
+    //todo: 장소 lat, lng, name 스냅샷 항목 추가
 
     private int movingDuration;
 

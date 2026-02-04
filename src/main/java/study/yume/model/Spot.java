@@ -56,6 +56,7 @@ public class Spot extends BaseTimeEntity{
     @Column(nullable = false,columnDefinition = "json")
     private Map<String, Object> metadata;
 
+    //todo: 공통(이름,주소,좌표,구글지도 등)을 제외한 데이터 user_spot 테이블 만들어 분리
 
     @OneToMany(mappedBy = "spot", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<SpotPurchase> spotPurchases = new ArrayList<>();

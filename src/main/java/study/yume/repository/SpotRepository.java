@@ -10,7 +10,6 @@ import org.springframework.stereotype.Repository;
 import study.yume.model.Spot;
 import study.yume.model.enums.SpotType;
 
-import java.util.List;
 import java.util.Optional;
 
 @Repository

@@ -86,5 +86,5 @@ CREATE INDEX idx_spotuser_user_isvisit ON spot_user(user_id, is_visit);
 CREATE INDEX idx_sgm_group_spotuser ON spot_group_map(group_id, spot_user_id);
 CREATE INDEX idx_sgm_spotuser_group ON spot_group_map(spot_user_id, group_id);
 CREATE INDEX idx_spotpurchase_user_spotuser_kind_status ON spot_purchase(user_id,spot_user_id,kind,status);
-CREATE INDEX idx_visithistory_user_spot ON spot_visit_history (user_id, spot_id);
+CREATE INDEX idx_visithistory_user_spot ON spot_visit_history (user_id, spot_user_id);
 CREATE INDEX idx_visithistory_user_day ON spot_visit_history (user_id, day_id);

@@ -41,7 +41,6 @@ public class DayScheduleController {
         dayScheduleService.deleteSchedule(user.getId(), scheduleId);
         return ResponseEntity.ok(ApiResponse.success(null));
     }
-
     //일정 순서나 시간과 무관한 수정
     @PatchMapping("/{scheduleId}/memo")
     public ResponseEntity<ApiResponse<DayScheduleResponse>> updateMemo(
@@ -51,4 +50,11 @@ public class DayScheduleController {
         return ResponseEntity.ok(ApiResponse.success(dayScheduleService.updateMemo(user.getId(), scheduleId, req)));
     }
 
+    @PatchMapping("/{scheduleId}/visit")
+    public ResponseEntity<ApiResponse<Void>> updateVisit(
+            @AuthenticationPrincipal CustomUserDetails user,
+            @PathVariable Long scheduleId) {
+        dayScheduleService.updateVisit(user.getId(),scheduleId);
+        return ResponseEntity.ok(ApiResponse.success(null));
+    }
 }

@@ -10,12 +10,12 @@ public record DayScheduleResponse(
         Long id,
         Long dayId,
         int scheduleOrder,
-        Long spotId,
-        String spotName,
-        SpotType spotType,
-        Boolean isVisit,
-        Double lat,//y
-        Double lng,//x
+        Long spotUserId,
+        String spotName,      // snapshot
+        SpotType spotType,    // snapshot
+        Boolean isChecked,
+        Double lat,  // snapshot
+        Double lng,  // snapshot
         LocalTime startTime,
         int duration,
         LocalTime endTime,
@@ -29,12 +29,12 @@ public record DayScheduleResponse(
                 schedule.getId(),
                 schedule.getPlanDay().getId(),
                 schedule.getScheduleOrder(),
-                schedule.getSpot() != null ? schedule.getSpot().getId() : null,
-                schedule.getSpot() != null ? schedule.getSpot().getSpotName() : null,
-                schedule.getSpot() != null ? schedule.getSpot().getSpotType() : null,
-                schedule.getSpot() != null ? schedule.getSpot().getIsVisit() : null,
-                schedule.getSpot() != null ? schedule.getSpot().getLocation().getY() : null,
-                schedule.getSpot() != null ? schedule.getSpot().getLocation().getX() : null,
+                schedule.getSpotUser() != null ? schedule.getSpotUser().getId() : null,
+                schedule.getSpotNameSnapshot(),
+                schedule.getSpotTypeSnapshot(),
+                schedule.getIsChecked(),
+                schedule.getSpotLocationSnapshot() != null ? schedule.getSpotLocationSnapshot().getY() : null,
+                schedule.getSpotLocationSnapshot() != null ? schedule.getSpotLocationSnapshot().getX() : null,
                 schedule.getStartTime(),
                 schedule.getDuration(),
                 schedule.getEndTime(),

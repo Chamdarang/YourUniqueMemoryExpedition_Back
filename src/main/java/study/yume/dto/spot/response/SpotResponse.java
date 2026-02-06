@@ -1,41 +1,49 @@
 package study.yume.dto.spot.response;
 
 import study.yume.model.Spot;
+import study.yume.model.SpotUser;
 import study.yume.model.enums.SpotType;
 
 import java.util.Map;
 
 public record SpotResponse(
-        Long id,
-        String placeId,
-        String spotName,
-        SpotType spotType,
-        String address,
-        String shortAddress,
-        String website,
-        String googleMapUrl,
-        Double lat, // Point의 y
-        Double lng, // Point의 x
-        Boolean isVisit,
-        String description,
-        Map<String ,Object> metadata
+        Long id,                    //spotUser의 id
+        Long spotId,                //spot의 id
+        String placeId,             //spot
+        String spotName,            //spot
+        String displayName,         // spotUser
+        SpotType spotType,          // spotUser
+        String address,             //spot
+        String shortAddress,        //spot
+        String website,             //spot
+        String googleMapUrl,        //spot
+        Double lat,                 //spot, Point의 y
+        Double lng,                 //spot, Point의 x
+        Boolean isVisit,            // spotUser
+        String description,         // spotUser
+        Map<String ,Object> metadata, // spot
+        Map<String ,Object> userMetadata // spotUser
+
 
 ) {
-    public static SpotResponse toDto(Spot spot) {
+    public static SpotResponse toDto(Spot spot, SpotUser spotUser) {
         return new SpotResponse(
+                spotUser.getId(),
                 spot.getId(),
                 spot.getPlaceId(),
                 spot.getSpotName(),
-                spot.getSpotType(),
+                spotUser.getCustomName(),
+                spotUser.getSpotType(),
                 spot.getAddress(),
                 spot.getShortAddress(),
                 spot.getWebsite(),
                 spot.getGoogleMapUrl(),
                 spot.getLocation().getY(),
                 spot.getLocation().getX(),
-                spot.getIsVisit(),
-                spot.getDescription(),
-                spot.getMetadata()
+                spotUser.getIsVisit(),
+                spotUser.getDescription(),
+                spot.getMetadata(),
+                spotUser.getMetadata()
         );
     }
 }

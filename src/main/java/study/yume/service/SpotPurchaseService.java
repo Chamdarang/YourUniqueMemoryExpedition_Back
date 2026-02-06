@@ -7,10 +7,10 @@ import org.springframework.transaction.annotation.Transactional;
 import study.yume.dto.spotpurchase.request.PurchaseCreateRequest;
 import study.yume.dto.spotpurchase.request.PurchaseUpdateRequest;
 import study.yume.dto.spotpurchase.response.SpotPurchaseResponse;
-import study.yume.model.Spot;
 import study.yume.model.SpotPurchase;
+import study.yume.model.SpotUser;
 import study.yume.repository.SpotPurchaseRepository;
-import study.yume.repository.SpotRepository;
+import study.yume.repository.SpotUserRepository;
 
 import java.util.List;
 
@@ -19,15 +19,15 @@ import java.util.List;
 @RequiredArgsConstructor
 public class SpotPurchaseService {
     private final SpotPurchaseRepository spotPurchaseRepository;
-    private final SpotRepository spotRepository;
+    private final SpotUserRepository spotUserRepository;
 
 
     public SpotPurchaseResponse createPurchase(Long userId, PurchaseCreateRequest req){
-        Spot spot = findSpotByUserIdAndId(userId, req.spotId());
+        SpotUser spotUser = findSpotUserByUserIdAndId(userId, req.spotUserId());
 
         SpotPurchase spotPurchase = new SpotPurchase();
         spotPurchase.setUserId(userId);
-        spotPurchase.setSpot(spot);
+        spotPurchase.setSpotUser(spotUser);
         spotPurchase.setKind(req.kind());
         spotPurchase.setCategory(req.category());
         spotPurchase.setItemName(req.itemName());
@@ -41,9 +41,9 @@ public class SpotPurchaseService {
         return SpotPurchaseResponse.toDto(spotPurchaseRepository.save(spotPurchase));
     }
 
-    public List<SpotPurchaseResponse> findAllBySpotId(Long userId,Long spotId){
-        findSpotByUserIdAndId(userId, spotId);
-        return spotPurchaseRepository.findAllByUserIdAndSpotId(userId,spotId).stream()
+    public List<SpotPurchaseResponse> findAllBySpotUserId(Long userId,Long spotUserId){
+        findSpotUserByUserIdAndId(userId, spotUserId);
+        return spotPurchaseRepository.findAllByUserIdAndSpotUserId(userId,spotUserId).stream()
                 .map(SpotPurchaseResponse::toDto)
                 .toList();
     }
@@ -76,8 +76,8 @@ public class SpotPurchaseService {
                 .orElseThrow(() -> new EntityNotFoundException("해당 물품을 찾을 수 없습니다."));
     }
 
-    private Spot findSpotByUserIdAndId(Long userId, Long spotId) {
-        return spotRepository.findByUserIdAndId(userId, spotId)
+    private SpotUser findSpotUserByUserIdAndId(Long userId, Long spotUserId) {
+        return spotUserRepository.findByUserIdAndId(userId, spotUserId)
                 .orElseThrow(() -> new EntityNotFoundException("해당 장소를 찾을 수 없습니다."));
     }
 }

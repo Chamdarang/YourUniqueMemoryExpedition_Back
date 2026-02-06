@@ -26,11 +26,11 @@ public class SpotPurchaseController {
         return ResponseEntity.ok(ApiResponse.success(spotPurchaseService.createPurchase(user.getId(),req)));
     }
 
-    @GetMapping("/spot/{spotId}")
-    public ResponseEntity<ApiResponse<List<SpotPurchaseResponse>>> findAllBySpotId(
+    @GetMapping("/spot/{spotUserId}")
+    public ResponseEntity<ApiResponse<List<SpotPurchaseResponse>>> findAllBySpotUserId(
             @AuthenticationPrincipal CustomUserDetails user,
-            @PathVariable Long spotId){
-        return ResponseEntity.ok(ApiResponse.success(spotPurchaseService.findAllBySpotId(user.getId(),spotId)));
+            @PathVariable Long spotUserId){
+        return ResponseEntity.ok(ApiResponse.success(spotPurchaseService.findAllBySpotUserId(user.getId(),spotUserId)));
     }
 
     @PatchMapping("/{purchaseId}")

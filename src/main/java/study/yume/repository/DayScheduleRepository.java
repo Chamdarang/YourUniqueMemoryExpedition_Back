@@ -26,7 +26,7 @@ public interface DayScheduleRepository extends JpaRepository<DaySchedule, Long> 
             "FROM DaySchedule ds " +
             "JOIN ds.planDay pd " +
             "LEFT JOIN pd.plan p " +
-            "WHERE ds.userId = :userId AND ds.spot.id = :spotId")
-    List<UsedScheduleProjection> findUsageBySpotId(@Param("userId") Long userId, @Param("spotId") Long spotId);
+            "WHERE ds.userId = :userId AND ds.spotUser.id = :spotUserId")
+    List<UsedScheduleProjection> findUsageBySpotId(@Param("userId") Long userId, @Param("spotUserId") Long spotUserId);
 
 }

@@ -56,21 +56,21 @@ public class SpotGroupController {
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 
-    @PostMapping("/{groupId}/spot/{spotId}")
+    @PostMapping("/{groupId}/spot/{spotUserId}")
     public ResponseEntity<ApiResponse<Void>> addSpotToGroup(
             @AuthenticationPrincipal CustomUserDetails user,
             @PathVariable Long groupId,
-            @PathVariable Long spotId){
-        spotGroupService.addSpotToGroup(user.getId(),groupId,spotId);
+            @PathVariable Long spotUserId){
+        spotGroupService.addSpotToGroup(user.getId(),groupId,spotUserId);
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 
-    @DeleteMapping("/{groupId}/spot/{spotId}")
+    @DeleteMapping("/{groupId}/spot/{spotUserId}")
     public ResponseEntity<ApiResponse<Void>> removeSpotFromGroup(
             @AuthenticationPrincipal CustomUserDetails user,
             @PathVariable Long groupId,
-            @PathVariable Long spotId) {
-        spotGroupService.removeSpotFromGroup(user.getId(),groupId,spotId);
+            @PathVariable Long spotUserId) {
+        spotGroupService.removeSpotFromGroup(user.getId(),groupId,spotUserId);
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 }

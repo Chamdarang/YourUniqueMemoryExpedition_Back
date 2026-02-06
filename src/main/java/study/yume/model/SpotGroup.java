@@ -19,5 +19,5 @@ public class SpotGroup extends BaseTimeEntity{
     @Column(nullable = false, length = 100)
     private String groupName;
     @ManyToMany(mappedBy = "spotGroup")
-    private List<Spot> spots = new ArrayList<>();
+    private List<SpotUser> spotUsers = new ArrayList<>();
 }

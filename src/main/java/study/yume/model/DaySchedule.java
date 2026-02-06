@@ -3,6 +3,8 @@ package study.yume.model;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
+import org.locationtech.jts.geom.Point;
+import study.yume.model.enums.SpotType;
 import study.yume.model.enums.Transportation;
 
 import java.time.LocalTime;
@@ -27,20 +29,25 @@ public class DaySchedule extends BaseTimeEntity {
     private int scheduleOrder;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "spot_id", foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT))
-    private Spot spot;
+    @JoinColumn(name = "spot_user_id", foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT))
+    private SpotUser spotUser;
+
+    @Column(length = 200)
+    private String spotNameSnapshot;
+    @Column(columnDefinition = "POINT SRID 4326")
+    private Point spotLocationSnapshot;
+    @Enumerated(EnumType.STRING)
+    @Column(length = 40)
+    private SpotType spotTypeSnapshot;
+    @Column(nullable = false)
+    private Boolean isChecked=false;
 
     @Column(nullable = false)
     private LocalTime startTime;
-
     @Column(nullable = false)
     private int duration; //단위: 분
-
     @Column(nullable = false)
     private LocalTime endTime;
-
-
-    //todo: 장소 lat, lng, name 스냅샷 항목 추가
 
     private int movingDuration;
 

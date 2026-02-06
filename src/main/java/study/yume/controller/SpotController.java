@@ -62,5 +62,13 @@ public class SpotController {
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 
+    @PostMapping("/test/renew/{placeId}")
+    public ResponseEntity<ApiResponse<Void>> spotDataUpdate(
+            @RequestBody SpotCreateRequest req,
+            @PathVariable String placeId
+    ){
+        spotService.spotDataUpdate(placeId,req);
+        return  ResponseEntity.ok(ApiResponse.success(null));
+    }
 
 }

@@ -8,10 +8,10 @@ import study.yume.dto.spotgroup.request.SpotGroupCreateRequest;
 import study.yume.dto.spotgroup.request.SpotGroupUpdateRequest;
 import study.yume.dto.spotgroup.response.SpotGroupDetailResponse;
 import study.yume.dto.spotgroup.response.SpotGroupResponse;
-import study.yume.model.Spot;
 import study.yume.model.SpotGroup;
+import study.yume.model.SpotUser;
 import study.yume.repository.SpotGroupRepository;
-import study.yume.repository.SpotRepository;
+import study.yume.repository.SpotUserRepository;
 
 import java.util.List;
 
@@ -21,7 +21,7 @@ import java.util.List;
 public class SpotGroupService {
 
     private final SpotGroupRepository spotGroupRepository;
-    private final SpotRepository spotRepository;
+    private final SpotUserRepository spotUserRepository;
 
     @Transactional(readOnly = true)
     public List<SpotGroupResponse> getAllGroups(Long userId){
@@ -53,33 +53,33 @@ public class SpotGroupService {
     public void deleteGroup(Long userId, Long groupId){
         SpotGroup group = findGroupByUserIdAndId(userId, groupId);
 
-        for(Spot spot : group.getSpots()){
-            spot.getSpotGroup().remove(group);
-            spotRepository.save(spot);
+        for(SpotUser spotUser : group.getSpotUsers()){
+            spotUser.getSpotGroup().remove(group);
+            spotUserRepository.save(spotUser);
         }
 
         spotGroupRepository.delete(group);
     }
 
-    public void addSpotToGroup(Long userId, Long groupId, Long spotId){
+    public void addSpotToGroup(Long userId, Long groupId, Long spotUserId){
         SpotGroup group = findGroupByUserIdAndId(userId, groupId);
-        Spot spot= findSpotByUserIdAndId(userId, spotId);
+        SpotUser spotUser= findSpotUserUserByUserIdAndId(userId, spotUserId);
 
-        if(!spot.getSpotGroup().contains(group)){
-            spot.getSpotGroup().add(group);
-            spotRepository.save(spot);
+        if(!spotUser.getSpotGroup().contains(group)){
+            spotUser.getSpotGroup().add(group);
+            spotUserRepository.save(spotUser);
         }else{
             throw new IllegalArgumentException("이미 해당 그룹에 등록되어 있습니다");
         }
     }
 
-    public void removeSpotFromGroup(Long userId, Long groupId, Long spotId){
+    public void removeSpotFromGroup(Long userId, Long groupId, Long spotUserId){
         SpotGroup group = findGroupByUserIdAndId(userId, groupId);
-        Spot spot= findSpotByUserIdAndId(userId, spotId);
+        SpotUser spotUser= findSpotUserUserByUserIdAndId(userId, spotUserId);
 
-        if(spot.getSpotGroup().contains(group)){
-            spot.getSpotGroup().remove(group);
-            spotRepository.save(spot);
+        if(spotUser.getSpotGroup().contains(group)){
+            spotUser.getSpotGroup().remove(group);
+            spotUserRepository.save(spotUser);
         }else{
             throw new IllegalArgumentException("해당 그룹에 등록되어 있지 않습니다");
         }
@@ -90,8 +90,8 @@ public class SpotGroupService {
         return spotGroupRepository.findByUserIdAndId(userId, groupId)
                 .orElseThrow(() -> new EntityNotFoundException("해당 그룹을 찾을 수 없습니다."));
     }
-    private Spot findSpotByUserIdAndId(Long userId, Long spotId) {
-        return spotRepository.findByUserIdAndId(userId, spotId)
+    private SpotUser findSpotUserUserByUserIdAndId(Long userId, Long spotUserId) {
+        return spotUserRepository.findByUserIdAndId(userId, spotUserId)
                 .orElseThrow(() -> new EntityNotFoundException("해당 장소를 찾을 수 없습니다."));
     }
 }

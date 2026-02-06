@@ -9,7 +9,7 @@ import java.time.LocalDate;
 
 public record SpotPurchaseResponse (
     Long id,
-    Long spotId,
+    Long spotUserId,
     String spotName,
     PurchaseKind kind,
     String category,
@@ -24,8 +24,8 @@ public record SpotPurchaseResponse (
     public static SpotPurchaseResponse toDto(SpotPurchase spotPurchase) {
         return new SpotPurchaseResponse(
                 spotPurchase.getId(),
-                spotPurchase.getSpot().getId(),
-                spotPurchase.getSpot().getSpotName(),
+                spotPurchase.getSpotUser().getId(),
+                spotPurchase.getSpotUser().getCustomName(),
                 spotPurchase.getKind(),
                 spotPurchase.getCategory(),
                 spotPurchase.getItemName(),

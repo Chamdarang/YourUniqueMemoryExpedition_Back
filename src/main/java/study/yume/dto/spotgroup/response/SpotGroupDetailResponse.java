@@ -15,9 +15,9 @@ public record SpotGroupDetailResponse(
         return new SpotGroupDetailResponse(
                 group.getId(),
                 group.getGroupName(),
-                group.getSpots() != null ? group.getSpots().size() : 0,
-                group.getSpots() != null ? group.getSpots().stream()
-                        .map(SpotResponse::toDto)
+                group.getSpotUsers() != null ? group.getSpotUsers().size() : 0,
+                group.getSpotUsers() != null ? group.getSpotUsers().stream()
+                        .map(spotUser -> SpotResponse.toDto(spotUser.getSpot(),spotUser))
                         .toList() : List.of()
         );
     }

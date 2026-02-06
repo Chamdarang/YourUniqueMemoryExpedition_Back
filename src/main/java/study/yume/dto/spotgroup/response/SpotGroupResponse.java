@@ -11,7 +11,7 @@ public record SpotGroupResponse(
         return new SpotGroupResponse(
                 group.getId(),
                 group.getGroupName(),
-                group.getSpots()!=null?group.getSpots().size():0
+                group.getSpotUsers()!=null?group.getSpotUsers().size():0
         );
     }
 }

@@ -19,11 +19,12 @@ import java.util.List;
 public class SpotPurchaseController {
     private final SpotPurchaseService spotPurchaseService;
 
-    @PostMapping
+    @PostMapping("/spot/{spotUserId}")
     public ResponseEntity<ApiResponse<SpotPurchaseResponse>> createPurchase(
             @AuthenticationPrincipal CustomUserDetails user,
+            @PathVariable Long spotUserId,
             @RequestBody PurchaseCreateRequest req){
-        return ResponseEntity.ok(ApiResponse.success(spotPurchaseService.createPurchase(user.getId(),req)));
+        return ResponseEntity.ok(ApiResponse.success(spotPurchaseService.createPurchase(user.getId(),spotUserId,req)));
     }
 
     @GetMapping("/spot/{spotUserId}")

@@ -22,8 +22,8 @@ public class SpotPurchaseService {
     private final SpotUserRepository spotUserRepository;
 
 
-    public SpotPurchaseResponse createPurchase(Long userId, PurchaseCreateRequest req){
-        SpotUser spotUser = findSpotUserByUserIdAndId(userId, req.spotUserId());
+    public SpotPurchaseResponse createPurchase(Long userId, Long spotUserId, PurchaseCreateRequest req){
+        SpotUser spotUser = findSpotUserByUserIdAndId(userId, spotUserId);
 
         SpotPurchase spotPurchase = new SpotPurchase();
         spotPurchase.setUserId(userId);

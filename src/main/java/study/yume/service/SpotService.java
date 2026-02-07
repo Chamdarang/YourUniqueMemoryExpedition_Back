@@ -97,6 +97,7 @@ public class SpotService {
         SpotUser spotUser = findSpotUserByUserIdAndId(userId, spotUserId);
 
         if (req.customName() != null) spotUser.setCustomName(req.customName());
+        if (req.spotType() != null) spotUser.setSpotType(req.spotType());
         if (req.isVisit() != null) spotUser.setIsVisit(req.isVisit());
         if (req.description() != null) spotUser.setDescription(req.description());
         if (req.metadata() != null) spotUser.setMetadata(req.metadata());

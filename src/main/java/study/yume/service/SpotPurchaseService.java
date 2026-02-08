@@ -2,13 +2,17 @@ package study.yume.service;
 
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import study.yume.dto.spotpurchase.request.PurchaseCreateRequest;
 import study.yume.dto.spotpurchase.request.PurchaseUpdateRequest;
+import study.yume.dto.spotpurchase.request.SpotPurchaseSearchRequest;
 import study.yume.dto.spotpurchase.response.SpotPurchaseResponse;
 import study.yume.model.SpotPurchase;
 import study.yume.model.SpotUser;
+import study.yume.model.enums.SpotType;
 import study.yume.repository.SpotPurchaseRepository;
 import study.yume.repository.SpotUserRepository;
 
@@ -23,7 +27,8 @@ public class SpotPurchaseService {
 
 
     public SpotPurchaseResponse createPurchase(Long userId, Long spotUserId, PurchaseCreateRequest req){
-        SpotUser spotUser = findSpotUserByUserIdAndId(userId, spotUserId);
+        SpotUser spotUser = null;
+        if (spotUserId!=0) spotUser = findSpotUserByUserIdAndId(userId, spotUserId);
 
         SpotPurchase spotPurchase = new SpotPurchase();
         spotPurchase.setUserId(userId);
@@ -41,6 +46,19 @@ public class SpotPurchaseService {
         return SpotPurchaseResponse.toDto(spotPurchaseRepository.save(spotPurchase));
     }
 
+    @Transactional(readOnly = true)
+    public Page<SpotPurchaseResponse> searchPurchases(Long userId, SpotPurchaseSearchRequest req, Pageable pageable) {
+        return spotPurchaseRepository.searchPurchases(
+                userId,
+                req.keyword(),
+                req.kind(),
+                req.status(),
+                req.category(),
+                pageable
+        ).map(SpotPurchaseResponse::toDto);
+    }
+
+    @Transactional(readOnly = true)
     public List<SpotPurchaseResponse> findAllBySpotUserId(Long userId,Long spotUserId){
         findSpotUserByUserIdAndId(userId, spotUserId);
         return spotPurchaseRepository.findAllByUserIdAndSpotUserId(userId,spotUserId).stream()

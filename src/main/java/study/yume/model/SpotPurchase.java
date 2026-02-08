@@ -22,7 +22,7 @@ public class SpotPurchase extends BaseTimeEntity {
 
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "spot_user_id",nullable = false, foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT))
+    @JoinColumn(name = "spot_user_id", foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT))
     private SpotUser spotUser;
 
     @Enumerated(EnumType.STRING)

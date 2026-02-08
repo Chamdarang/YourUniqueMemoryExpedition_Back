@@ -1,0 +1,1 @@
+ALTER TABLE spot_purchase MODIFY COLUMN spot_user_id BIGINT NULL;

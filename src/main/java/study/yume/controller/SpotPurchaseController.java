@@ -1,12 +1,17 @@
 package study.yume.controller;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import study.yume.dto.ApiResponse;
 import study.yume.dto.spotpurchase.request.PurchaseCreateRequest;
 import study.yume.dto.spotpurchase.request.PurchaseUpdateRequest;
+import study.yume.dto.spotpurchase.request.SpotPurchaseSearchRequest;
 import study.yume.dto.spotpurchase.response.SpotPurchaseResponse;
 import study.yume.security.CustomUserDetails;
 import study.yume.service.SpotPurchaseService;
@@ -25,6 +30,16 @@ public class SpotPurchaseController {
             @PathVariable Long spotUserId,
             @RequestBody PurchaseCreateRequest req){
         return ResponseEntity.ok(ApiResponse.success(spotPurchaseService.createPurchase(user.getId(),spotUserId,req)));
+    }
+
+    @GetMapping("/search")
+    public ResponseEntity<ApiResponse<Page<SpotPurchaseResponse>>> searchPurchases(
+            @AuthenticationPrincipal CustomUserDetails user,
+            SpotPurchaseSearchRequest searchReq,
+            @PageableDefault(sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+        return ResponseEntity.ok(ApiResponse.success(
+                spotPurchaseService.searchPurchases(user.getId(), searchReq, pageable)
+        ));
     }
 
     @GetMapping("/spot/{spotUserId}")

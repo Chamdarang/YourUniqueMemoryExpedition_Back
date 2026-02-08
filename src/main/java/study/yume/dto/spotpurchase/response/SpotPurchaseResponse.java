@@ -24,8 +24,8 @@ public record SpotPurchaseResponse (
     public static SpotPurchaseResponse toDto(SpotPurchase spotPurchase) {
         return new SpotPurchaseResponse(
                 spotPurchase.getId(),
-                spotPurchase.getSpotUser().getId(),
-                spotPurchase.getSpotUser().getCustomName(),
+                spotPurchase.getSpotUser() != null ? spotPurchase.getSpotUser().getId(): 0,
+                spotPurchase.getSpotUser() != null ? spotPurchase.getSpotUser().getCustomName() : "",
                 spotPurchase.getKind(),
                 spotPurchase.getCategory(),
                 spotPurchase.getItemName(),

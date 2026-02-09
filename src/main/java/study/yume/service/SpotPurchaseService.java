@@ -12,7 +12,6 @@ import study.yume.dto.spotpurchase.request.SpotPurchaseSearchRequest;
 import study.yume.dto.spotpurchase.response.SpotPurchaseResponse;
 import study.yume.model.SpotPurchase;
 import study.yume.model.SpotUser;
-import study.yume.model.enums.SpotType;
 import study.yume.repository.SpotPurchaseRepository;
 import study.yume.repository.SpotUserRepository;
 
@@ -69,6 +68,10 @@ public class SpotPurchaseService {
     public SpotPurchaseResponse updatePurchase(Long userId, Long purchaseId, PurchaseUpdateRequest req){
         SpotPurchase purchase = findPurchaseByUserIdAndId(userId,purchaseId);
 
+        if (req.spotUserId() != null){
+            SpotUser spotUser = findSpotUserByUserIdAndId(userId, req.spotUserId());
+            purchase.setSpotUser(spotUser);
+        }
         if (req.kind() != null) purchase.setKind(req.kind());
         if (req.category() != null) purchase.setCategory(req.category());
         if (req.itemName() != null) purchase.setItemName(req.itemName());

@@ -32,7 +32,7 @@ public class SpotPurchaseController {
         return ResponseEntity.ok(ApiResponse.success(spotPurchaseService.createPurchase(user.getId(),spotUserId,req)));
     }
 
-    @GetMapping("/search")
+    @GetMapping()
     public ResponseEntity<ApiResponse<Page<SpotPurchaseResponse>>> searchPurchases(
             @AuthenticationPrincipal CustomUserDetails user,
             SpotPurchaseSearchRequest searchReq,

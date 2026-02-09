@@ -5,7 +5,8 @@ import study.yume.model.enums.SpotType;
 import java.util.Map;
 
 public record SpotUpdateRequest(
-        String customName,
+        Long spotUserId,
+        String spotName,
         SpotType spotType,
         Boolean isVisit,
         String description,

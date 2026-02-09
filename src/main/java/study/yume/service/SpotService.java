@@ -96,7 +96,7 @@ public class SpotService {
     public SpotResponse updateSpot(Long userId, Long spotUserId, SpotUpdateRequest req) {
         SpotUser spotUser = findSpotUserByUserIdAndId(userId, spotUserId);
 
-        if (req.customName() != null) spotUser.setCustomName(req.customName());
+        if (req.spotName() != null) spotUser.setCustomName(req.spotName());
         if (req.spotType() != null) spotUser.setSpotType(req.spotType());
         if (req.isVisit() != null) spotUser.setIsVisit(req.isVisit());
         if (req.description() != null) spotUser.setDescription(req.description());

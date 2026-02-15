@@ -51,6 +51,9 @@ public class DaySchedule extends BaseTimeEntity {
 
     private int movingDuration;
 
+    private int extraDuration; // 체류 인저리타임
+    private int extraMovingDuration; // 이동 인저리타임
+
     @Enumerated(EnumType.STRING)
     private Transportation transportation;
     private String memo;

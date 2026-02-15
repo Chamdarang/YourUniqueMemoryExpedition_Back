@@ -20,6 +20,8 @@ public record DayScheduleResponse(
         int duration,
         LocalTime endTime,
         int movingDuration,
+        int extraDuration,
+        int extraMovingDuration,
         Transportation transportation,
         String memo,
         String movingMemo
@@ -39,6 +41,8 @@ public record DayScheduleResponse(
                 schedule.getDuration(),
                 schedule.getEndTime(),
                 schedule.getMovingDuration(),
+                schedule.getExtraDuration(),
+                schedule.getExtraMovingDuration(),
                 schedule.getTransportation(),
                 schedule.getMemo(),
                 schedule.getMovingMemo()

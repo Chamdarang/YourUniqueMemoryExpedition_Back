@@ -5,21 +5,18 @@ import study.yume.model.enums.Transportation;
 
 import java.time.LocalTime;
 
-public record ScheduleItemRequest(
-        Long id,
-        int scheduleOrder,
-        Long spotUserId,      // 연결된 개인 장소 ID
+public record ScheduleUpdateRequest(
+        Long spotUserId,
         String spotName,
         Double lat,
         Double lng,
         SpotType spotType,
-        Boolean isChecked,
         LocalTime startTime,
-        int duration,
+        Integer duration,
         LocalTime endTime,
-        int movingDuration,
-        int extraDuration,
-        int extraMovingDuration,
+        Integer movingDuration,
+        Integer extraDuration,
+        Integer extraMovingDuration,
         Transportation transportation,
         String memo,
         String movingMemo

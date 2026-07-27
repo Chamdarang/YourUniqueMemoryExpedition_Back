@@ -15,6 +15,7 @@ public record ScheduleItemRequest(
         SpotType spotType,
         Boolean isChecked,
         LocalTime startTime,
+        boolean fixedStartTime,
         int duration,
         LocalTime endTime,
         int movingDuration,

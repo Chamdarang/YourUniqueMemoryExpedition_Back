@@ -17,6 +17,7 @@ public record DayScheduleResponse(
         Double lat,  // snapshot
         Double lng,  // snapshot
         LocalTime startTime,
+        boolean fixedStartTime,
         int duration,
         LocalTime endTime,
         int movingDuration,
@@ -38,6 +39,7 @@ public record DayScheduleResponse(
                 schedule.getSpotLocationSnapshot() != null ? schedule.getSpotLocationSnapshot().getY() : null,
                 schedule.getSpotLocationSnapshot() != null ? schedule.getSpotLocationSnapshot().getX() : null,
                 schedule.getStartTime(),
+                schedule.isFixedStartTime(),
                 schedule.getDuration(),
                 schedule.getEndTime(),
                 schedule.getMovingDuration(),

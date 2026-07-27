@@ -54,8 +54,10 @@ public class SpotService {
                 });
 
 
-        if (spotUserRepository.existsByUserIdAndSpotId(userId, spot.getId())) {
-            throw new IllegalArgumentException("이미 등록된 장소입니다.");
+        SpotUser existingSpotUser = spotUserRepository.findByUserIdAndSpotId(userId, spot.getId())
+                .orElse(null);
+        if (existingSpotUser != null) {
+            return SpotResponse.toDto(spot, existingSpotUser);
         }
 
         SpotUser spotUser = new SpotUser();

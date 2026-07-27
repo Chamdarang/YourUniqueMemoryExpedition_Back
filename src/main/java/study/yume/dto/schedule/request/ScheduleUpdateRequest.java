@@ -12,6 +12,7 @@ public record ScheduleUpdateRequest(
         Double lng,
         SpotType spotType,
         LocalTime startTime,
+        Boolean fixedStartTime,
         Integer duration,
         LocalTime endTime,
         Integer movingDuration,

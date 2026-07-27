@@ -89,6 +89,7 @@ public class DayScheduleService {
         daySchedule.setPlanDay(findDayByUserIdAndId(userId, dayId));
         daySchedule.setScheduleOrder(req.scheduleOrder());
         daySchedule.setStartTime(LocalTime.of(9, 0));
+        daySchedule.setFixedStartTime(false);
         daySchedule.setDuration(60);
 
         schedules.add(req.scheduleOrder(), daySchedule);
@@ -103,15 +104,20 @@ public class DayScheduleService {
     public List<DayScheduleResponse> updateSchedule(Long userId, Long scheduleId, ScheduleUpdateRequest req) {
         DaySchedule schedule = findScheduleByUserIdAndId(userId, scheduleId);
 
-        if (req.spotUserId() != null && req.spotUserId()!=0){
-            SpotUser spotUser = spotUserRepository.findByUserIdAndId(userId, req.spotUserId())
-                .orElseThrow(() -> new EntityNotFoundException("장소를 찾을 수 없습니다."));
-            schedule.setSpotUser(spotUser);
+        if (req.spotUserId() != null) {
+            if (req.spotUserId() == 0) {
+                schedule.setSpotUser(null);
+            } else {
+                SpotUser spotUser = spotUserRepository.findByUserIdAndId(userId, req.spotUserId())
+                    .orElseThrow(() -> new EntityNotFoundException("장소를 찾을 수 없습니다."));
+                schedule.setSpotUser(spotUser);
+            }
         }
         if (req.spotName() != null) schedule.setSpotNameSnapshot(req.spotName());
         if (req.lat() != null && req.lng() !=null) schedule.setSpotLocationSnapshot(geometryFactory.createPoint(new Coordinate(req.lng(),req.lat())));
         if (req.spotType() != null) schedule.setSpotTypeSnapshot(req.spotType());
         if (req.startTime() != null) schedule.setStartTime(req.startTime()); // 첫번쨰 일정일경우 이후 작업에서 업데이트 안되니 직접적용
+        if (req.fixedStartTime() != null) schedule.setFixedStartTime(req.fixedStartTime());
         if (req.duration() != null) schedule.setDuration(req.duration());
         if (req.extraDuration() != null) schedule.setExtraDuration(req.extraDuration());
         if (req.movingDuration() != null) schedule.setMovingDuration(req.movingDuration());
@@ -205,15 +211,15 @@ public class DayScheduleService {
             DaySchedule current = schedules.get(i);
             current.setScheduleOrder(i);
 
-            if (i == 0) {
+            if (i == 0 || current.isFixedStartTime()) {
                 // 첫 일정의 시작 시간은 보존, 종료 시간만 갱신
-                current.setEndTime(current.getStartTime().plusMinutes(current.getDuration() + current.getExtraDuration()));
+                current.setEndTime(current.getStartTime().plusMinutes(current.getDuration()));
             } else {
                 DaySchedule prev = schedules.get(i - 1);
-                LocalTime nextStart = prev.getEndTime().plusMinutes(current.getMovingDuration() + current.getExtraMovingDuration());
+                LocalTime nextStart = prev.getEndTime().plusMinutes(current.getMovingDuration());
 
                 current.setStartTime(nextStart);
-                current.setEndTime(nextStart.plusMinutes(current.getDuration() + current.getExtraDuration()));
+                current.setEndTime(nextStart.plusMinutes(current.getDuration()));
             }
         }
         return schedules;

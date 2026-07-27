@@ -16,6 +16,7 @@ import java.util.Optional;
 public interface SpotUserRepository extends JpaRepository<SpotUser, Long> {
 
     Optional<SpotUser> findByUserIdAndId(Long userId, Long id);
+    Optional<SpotUser> findByUserIdAndSpotId(Long userId, Long spotId);
     boolean existsByUserIdAndSpotId(Long userId, Long spotId);
 
     @Query("SELECT su FROM SpotUser su JOIN su.spot s " +

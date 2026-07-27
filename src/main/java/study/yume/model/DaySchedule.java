@@ -45,6 +45,8 @@ public class DaySchedule extends BaseTimeEntity {
     @Column(nullable = false)
     private LocalTime startTime;
     @Column(nullable = false)
+    private boolean fixedStartTime;
+    @Column(nullable = false)
     private int duration; //단위: 분
     @Column(nullable = false)
     private LocalTime endTime;

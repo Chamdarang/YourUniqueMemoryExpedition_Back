@@ -1,19 +1,43 @@
 # Your Unique Memory Expedition(YUME) [Back]
 
+## 로컬 실행 설정
+
+프로젝트 루트에 Git으로 추적되지 않는 `.env` 파일을 만들고 다음 값을 설정합니다.  
+`application.yml`에는 실제 비밀값 대신 환경변수 참조만 포함되어 있습니다.
+
+일본 열차 경로는 RapidAPI의 `NAVITIME Route(totalnavi)`를 사용합니다.  
+무료 Basic 플랜은 월 500회까지 사용할 수 있습니다. 
+
+- 도보, 택시, 자전거, 오토바이: Google Routes API
+- 열차: NAVITIME Route(totalnavi)
+- 버스: Google 지도에서 확인 후 수동 입력
+
+```text
+DB_HOST_USERNAME=your_database_username
+DB_HOST_PASSWORD=your_database_password
+JWT_SECRET_KEY=at_least_32_bytes_of_random_secret
+GOOGLE_MAPS_ROUTES_API_KEY=your_server_routes_api_key
+NAVITIME_RAPID_API_KEY=your_rapidapi_key
+```
+
+데이터베이스 주소가 기본값인 `jdbc:mysql://localhost:3306/yume`과 다르면
+`DB_HOST_URL`도 설정합니다.  
+정적 지도 이미지에 별도 키를 사용할 경우 `GOOGLE_MAPS_API_KEY`를 추가할 수 있습니다.
+
+
 ## 프로젝트 개요
 일본 여행 일정을 구글 스프레드시트로 관리하며 느꼈던 아카이빙의 한계와 불편함을 해소하기 위해 시작한 프로젝트입니다.  
 단순한 일정 기록을 넘어 방문 장소의 히스토리, 기념품 구매 현황, 고슈인 수집 상태 등을 체계적으로 관리하고,  
 Spring Boot의 기술적 역량을 깊이 있게 다지는 것을 목표로 했습니다.
 
 ## 개발 진행 방식
-- 자가 구현 후 AI 검수  
+~~- 자가 구현 후 AI 검수  
   Java 기반 Spring Boot와 MySQL로 비즈니스 로직을 직접 설계 및 구현한 후,  
-  Gemini AI와의 코드 리뷰를 통해 구조적 결함을 보완했습니다.
+  Gemini AI와의 코드 리뷰를 통해 구조적 결함을 보완했습니다.~~
 
-
-- 기술적 시야 확장
-  리뷰 과정을 통해 JWT 인증 체계의 안정적인 적용, 공간 데이터(Point 타입)를 활용한 위치 기반 서비스 구현 등  
-  초기 설계 시 간과할 수 있었던 최적화 포인트들을 학습하고 적용했습니다.
+ - AI 구현 후 검수
+  Codex를 활용해 불편했거나 추가하고싶은 부분을 개선한 후  
+  결과물을 검수하고 코드를 확인하며 검토함
 
 ## 주요 중점
 - 여행-계획-일정-장소의 유연한 도메인 설계  
@@ -29,9 +53,9 @@ Spring Boot의 기술적 역량을 깊이 있게 다지는 것을 목표로 했�
 
 1. 비회원 일정 공유 및 실시간 협업  
   UUID 기반의 공유 토큰을 발급하여 가입 없이도 지인과 일정을 공유하고,  
-  WebSocket 기반의 수정사항의 실시간 적용 및 접속자 확인 기능을 추가할 계획
+  수정사항의 실시간 적용 및 접속자 확인 기능을 추가할 계획
 
 
-2. 원자적(Atomic) 수정 API  
-  동시 편집 환경에서 데이터 충돌(Lost Update)을 방지하기 위해,  
-  전체 교체 방식에서 행위 단위(추가/삭제/이동)의 개별 API로 전환하여 정합성을 보장할 예정
+2. 일정 불러오기 개선
+  현재는 서비스 자체의 일정을 export한 json과 개인적으로 사용하던 양식의 엑셀파일만 import 되는데  
+  다양한 양식도 '계획'이기만 하다면 가져올 수 있도록 대응범위를 넓힐 생각임

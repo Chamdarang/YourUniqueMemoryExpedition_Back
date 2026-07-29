@@ -13,10 +13,12 @@ import study.yume.dto.spot.request.SpotCreateRequest;
 import study.yume.dto.spot.request.SpotGetFilteredRequest;
 import study.yume.dto.spot.request.SpotUpdateRequest;
 import study.yume.dto.spot.response.SpotDetailResponse;
+import study.yume.dto.spot.response.SpotDuplicateCandidateResponse;
 import study.yume.dto.spot.response.SpotResponse;
 import study.yume.security.CustomUserDetails;
 import study.yume.service.SpotService;
 
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/spots")
@@ -52,6 +54,24 @@ public class SpotController {
             @PathVariable Long id,
             @RequestBody SpotUpdateRequest req){
         return  ResponseEntity.ok(ApiResponse.success(spotService.updateSpot(user.getId(), id, req)));
+    }
+
+    @GetMapping("/duplicates")
+    public ResponseEntity<ApiResponse<List<SpotDuplicateCandidateResponse>>> getDuplicateCandidates(
+            @AuthenticationPrincipal CustomUserDetails user
+    ) {
+        return ResponseEntity.ok(ApiResponse.success(spotService.findDuplicateCandidates(user.getId())));
+    }
+
+    @PostMapping("/{targetId}/merge/{sourceId}")
+    public ResponseEntity<ApiResponse<SpotResponse>> mergeSpots(
+            @AuthenticationPrincipal CustomUserDetails user,
+            @PathVariable Long targetId,
+            @PathVariable Long sourceId
+    ) {
+        return ResponseEntity.ok(ApiResponse.success(
+                spotService.mergeSpots(user.getId(), targetId, sourceId)
+        ));
     }
 
     @DeleteMapping("/{id}")

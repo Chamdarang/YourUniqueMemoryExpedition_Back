@@ -1,6 +1,7 @@
 package study.yume.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
@@ -21,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 
 @Service
+@Slf4j
 public class RouteEstimateService {
 
     private static final String FIELD_MASK =
@@ -73,6 +75,12 @@ public class RouteEstimateService {
                     .retrieve()
                     .body(JsonNode.class);
         } catch (RestClientResponseException exception) {
+            log.warn(
+                    "route_provider_error provider=google status={} transportation={}",
+                    exception.getStatusCode().value(),
+                    request.transportation(),
+                    exception
+            );
             throw new IllegalStateException(
                     "Google 경로 API 호출에 실패했습니다. Routes API 활성화, API 키 제한, 할당량을 확인해 주세요.",
                     exception
@@ -119,6 +127,12 @@ public class RouteEstimateService {
                     .retrieve()
                     .body(JsonNode.class);
         } catch (RestClientResponseException exception) {
+            log.warn(
+                    "route_provider_error provider=navitime status={} transportation={}",
+                    exception.getStatusCode().value(),
+                    request.transportation(),
+                    exception
+            );
             String message = exception.getStatusCode().value() == 429
                     ? "NAVITIME 무료 월간 호출 한도를 초과했습니다."
                     : "NAVITIME API 호출에 실패했습니다. RapidAPI 구독과 API 키를 확인해 주세요.";
@@ -270,7 +284,7 @@ public class RouteEstimateService {
         return switch (transportation) {
             case WALK -> "WALK";
             case BUS, TRAIN -> "TRANSIT";
-            case TAXI -> "DRIVE";
+            case TAXI, CAR -> "DRIVE";
             case BICYCLE -> "BICYCLE";
             case MOTORCYCLE -> "TWO_WHEELER";
             case SHIP, AIRPLANE ->

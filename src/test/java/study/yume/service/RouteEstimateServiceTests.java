@@ -16,6 +16,7 @@ class RouteEstimateServiceTests {
         assertThat(RouteEstimateService.toGoogleTravelMode(Transportation.BUS)).isEqualTo("TRANSIT");
         assertThat(RouteEstimateService.toGoogleTravelMode(Transportation.TRAIN)).isEqualTo("TRANSIT");
         assertThat(RouteEstimateService.toGoogleTravelMode(Transportation.TAXI)).isEqualTo("DRIVE");
+        assertThat(RouteEstimateService.toGoogleTravelMode(Transportation.CAR)).isEqualTo("DRIVE");
         assertThat(RouteEstimateService.toGoogleTravelMode(Transportation.BICYCLE)).isEqualTo("BICYCLE");
         assertThat(RouteEstimateService.toGoogleTravelMode(Transportation.MOTORCYCLE))
                 .isEqualTo("TWO_WHEELER");

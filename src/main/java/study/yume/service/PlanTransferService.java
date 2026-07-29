@@ -12,6 +12,7 @@ import study.yume.dto.plan.transfer.PlanTransferDto;
 import study.yume.model.DaySchedule;
 import study.yume.model.Plan;
 import study.yume.model.PlanDay;
+import study.yume.model.SpotUser;
 import study.yume.repository.DayScheduleRepository;
 import study.yume.repository.PlanDayRepository;
 import study.yume.repository.PlanRepository;
@@ -155,18 +156,23 @@ public class PlanTransferService {
         schedule.setUserId(userId);
         schedule.setPlanDay(day);
         schedule.setScheduleOrder(normalizedOrder);
-        if (imported.spotUserId() != null) {
-            schedule.setSpotUser(
-                    spotUserRepository.findByUserIdAndId(userId, imported.spotUserId()).orElse(null)
-            );
-        }
-        schedule.setSpotNameSnapshot(imported.spotName());
+        SpotUser linkedSpot = imported.spotUserId() == null
+                ? null
+                : spotUserRepository.findByUserIdAndId(userId, imported.spotUserId()).orElse(null);
+        schedule.setSpotUser(linkedSpot);
+        schedule.setSpotNameSnapshot(imported.spotName() != null
+                ? imported.spotName()
+                : linkedSpot == null ? null : linkedSpot.getSpot().getSpotName());
         if (imported.lat() != null && imported.lng() != null) {
             schedule.setSpotLocationSnapshot(
                     geometryFactory.createPoint(new Coordinate(imported.lng(), imported.lat()))
             );
+        } else if (linkedSpot != null) {
+            schedule.setSpotLocationSnapshot(linkedSpot.getSpot().getLocation());
         }
-        schedule.setSpotTypeSnapshot(imported.spotType());
+        schedule.setSpotTypeSnapshot(imported.spotType() != null
+                ? imported.spotType()
+                : linkedSpot == null ? null : linkedSpot.getSpotType());
         schedule.setIsChecked(Boolean.TRUE.equals(imported.isChecked()));
         schedule.setStartTime(imported.startTime());
         schedule.setFixedStartTime(Boolean.TRUE.equals(imported.fixedStartTime()));

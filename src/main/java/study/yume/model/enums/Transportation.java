@@ -7,6 +7,7 @@ public enum Transportation {
     SHIP,
     AIRPLANE,
     TAXI,
+    CAR,
     BICYCLE,
     MOTORCYCLE
 }

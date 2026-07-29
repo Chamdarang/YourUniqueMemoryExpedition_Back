@@ -31,5 +31,22 @@ google:
 navitime:
   rapid-api-key: ${NAVITIME_RAPID_API_KEY:}
 
+auth:
+  signup-enabled: ${AUTH_SIGNUP_ENABLED:true}
+
 server:
   port: ${SERVER_PORT:8080}
+  forward-headers-strategy: ${SERVER_FORWARD_HEADERS_STRATEGY:native}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %5p [%thread] [requestId:%X{requestId:-}] %logger{36} : %msg%n%wEx"

@@ -11,11 +11,13 @@ import study.yume.model.SpotUser;
 import study.yume.model.enums.SpotType;
 
 import java.util.Optional;
+import java.util.List;
 
 @Repository
 public interface SpotUserRepository extends JpaRepository<SpotUser, Long> {
 
     Optional<SpotUser> findByUserIdAndId(Long userId, Long id);
+    List<SpotUser> findAllByUserId(Long userId);
     Optional<SpotUser> findByUserIdAndSpotId(Long userId, Long spotId);
     boolean existsByUserIdAndSpotId(Long userId, Long spotId);
 

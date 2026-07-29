@@ -16,6 +16,8 @@
 DB_HOST_USERNAME=your_database_username
 DB_HOST_PASSWORD=your_database_password
 JWT_SECRET_KEY=at_least_32_bytes_of_random_secret
+AUTH_SIGNUP_ENABLED=true
+SERVER_FORWARD_HEADERS_STRATEGY=native
 GOOGLE_MAPS_ROUTES_API_KEY=your_server_routes_api_key
 NAVITIME_RAPID_API_KEY=your_rapidapi_key
 ```
@@ -23,6 +25,17 @@ NAVITIME_RAPID_API_KEY=your_rapidapi_key
 데이터베이스 주소가 기본값인 `jdbc:mysql://localhost:3306/yume`과 다르면
 `DB_HOST_URL`도 설정합니다.  
 정적 지도 이미지에 별도 키를 사용할 경우 `GOOGLE_MAPS_API_KEY`를 추가할 수 있습니다.
+신규 가입을 막으려면 `AUTH_SIGNUP_ENABLED=false`로 설정합니다.
+리버스 프록시 환경에서는 기본값인 `native`가 컨테이너의 신뢰 가능한 프록시 규칙으로
+전달 헤더를 처리한 뒤 로그인·회원가입 제한에 실제 클라이언트 주소를 사용합니다.
+
+## 운영 확인
+
+- 상태 확인: `GET /actuator/health`
+- 모든 API 응답에는 `X-Request-ID` 헤더가 포함됩니다.
+- 오류 화면에 표시되는 요청 ID로 백엔드 로그를 검색할 수 있습니다.
+- 로그에는 API 키와 JWT를 직접 기록하지 않습니다.
+- GitHub Actions에서는 Flyway migration 적용·검증 후 테스트를 실행합니다.
 
 
 ## 프로젝트 개요

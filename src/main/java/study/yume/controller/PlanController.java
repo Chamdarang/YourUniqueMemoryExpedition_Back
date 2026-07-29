@@ -12,14 +12,17 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import study.yume.dto.ApiResponse;
 import study.yume.dto.plan.request.PlanCreateRequest;
+import study.yume.dto.plan.request.GeneralImportConfig;
 import study.yume.dto.plan.request.PlanUpdateRequest;
 import study.yume.dto.plan.response.PlanDetailResponse;
+import study.yume.dto.plan.response.PlanImportPreviewResponse;
 import study.yume.dto.plan.response.PlanResponse;
+import study.yume.dto.plan.response.PlanImportAnalysisResponse;
 import study.yume.dto.plan.transfer.PlanTransferDto;
 import study.yume.security.CustomUserDetails;
 import study.yume.service.PlanService;
-import study.yume.service.PlanSpreadsheetImportService;
 import study.yume.service.PlanTransferService;
+import study.yume.service.GeneralPlanImportService;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -30,7 +33,7 @@ import java.util.List;
 public class PlanController {
     private final PlanService planService;
     private final PlanTransferService planTransferService;
-    private final PlanSpreadsheetImportService planSpreadsheetImportService;
+    private final GeneralPlanImportService generalPlanImportService;
 
     @GetMapping("/FORTEST/GETALLPLANS")
     public ResponseEntity<ApiResponse<Page<PlanResponse>>> getPlans(
@@ -83,14 +86,24 @@ public class PlanController {
         return ResponseEntity.ok(ApiResponse.success(planTransferService.importPlan(user.getId(), transfer)));
     }
 
-    @PostMapping(value = "/import/spreadsheet/preview", consumes = "multipart/form-data")
-    public ResponseEntity<ApiResponse<PlanTransferDto>> previewSpreadsheetImport(
+    @PostMapping(value = "/import/file/analyze", consumes = "multipart/form-data")
+    public ResponseEntity<ApiResponse<PlanImportAnalysisResponse>> analyzeImportFile(
             @RequestPart("file") MultipartFile file,
-            @RequestParam String planName,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate
+            @RequestParam(required = false, defaultValue = "AUTO") String charset,
+            @RequestParam(required = false, defaultValue = "AUTO") String delimiter
     ) {
         return ResponseEntity.ok(ApiResponse.success(
-                planSpreadsheetImportService.preview(file, planName, startDate)
+                generalPlanImportService.analyze(file, charset, delimiter)
+        ));
+    }
+
+    @PostMapping(value = "/import/file/preview", consumes = "multipart/form-data")
+    public ResponseEntity<ApiResponse<PlanImportPreviewResponse>> previewGeneralImport(
+            @RequestPart("file") MultipartFile file,
+            @RequestPart("config") GeneralImportConfig config
+    ) {
+        return ResponseEntity.ok(ApiResponse.success(
+                generalPlanImportService.preview(file, config)
         ));
     }
 

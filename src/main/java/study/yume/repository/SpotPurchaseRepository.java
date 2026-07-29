@@ -4,9 +4,11 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import study.yume.model.SpotPurchase;
+import study.yume.model.SpotUser;
 import study.yume.model.enums.PurchaseKind;
 import study.yume.model.enums.PurchaseStatus;
 
@@ -33,4 +35,13 @@ public interface SpotPurchaseRepository extends JpaRepository<SpotPurchase, Long
             @Param("status") PurchaseStatus status,
             @Param("category") String category,
             Pageable pageable);
+
+    @Modifying
+    @Query("UPDATE SpotPurchase sp SET sp.spotUser = :target " +
+            "WHERE sp.userId = :userId AND sp.spotUser.id = :sourceId")
+    int reassignSpotUser(
+            @Param("userId") Long userId,
+            @Param("sourceId") Long sourceId,
+            @Param("target") SpotUser target
+    );
 }

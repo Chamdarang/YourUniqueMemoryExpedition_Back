@@ -2,15 +2,15 @@ buildscript {
 	repositories { mavenCentral() }
 	dependencies {
 		// Flyway DB 타입(모듈) - MySQL
-		classpath "org.flywaydb:flyway-mysql:11.13.0"
+		classpath "org.flywaydb:flyway-mysql:13.0.0"
 	}
 }
 
 plugins {
 	id 'java'
-	id 'org.springframework.boot' version '3.4.3'
+	id 'org.springframework.boot' version '4.1.0'
 	id 'io.spring.dependency-management' version '1.1.7'
-	id "org.flywaydb.flyway" version "11.13.0"
+	id "org.flywaydb.flyway" version "13.0.0"
 }
 
 
@@ -42,16 +42,16 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-security'
 	implementation 'org.springframework.boot:spring-boot-starter-web'
 	implementation 'org.springframework.boot:spring-boot-starter-actuator'
-	implementation 'io.hypersistence:hypersistence-utils-hibernate-63:3.9.5'
+	implementation 'io.hypersistence:hypersistence-utils-hibernate-63:3.15.4'
 	implementation 'com.vladmihalcea:hibernate-types-60:2.21.1'
-	implementation 'org.hibernate.orm:hibernate-spatial:6.5.2.Final'
-	implementation 'org.locationtech.jts:jts-core:1.19.0'
-	implementation 'io.jsonwebtoken:jjwt-api:0.11.5'
+	implementation 'org.hibernate.orm:hibernate-spatial:7.4.5.Final'
+	implementation 'org.locationtech.jts:jts-core:1.20.0'
+	implementation 'io.jsonwebtoken:jjwt-api:0.13.0'
 	implementation 'org.apache.poi:poi-ooxml:5.5.1'
 	implementation 'org.apache.commons:commons-csv:1.14.1'
 
-	runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.11.5'
-	runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.11.5'
+	runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.13.0'
+	runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.13.0'
 	compileOnly 'org.projectlombok:lombok'
 	developmentOnly 'org.springframework.boot:spring-boot-devtools'
 	runtimeOnly 'com.mysql:mysql-connector-j'

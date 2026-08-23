@@ -1,0 +1,2 @@
+ALTER TABLE plan_day
+    ADD COLUMN schedule_mode VARCHAR(20) NOT NULL DEFAULT 'DETAILED' AFTER memo;

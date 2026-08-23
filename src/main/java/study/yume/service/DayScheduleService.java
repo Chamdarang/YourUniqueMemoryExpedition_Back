@@ -16,11 +16,13 @@ import study.yume.model.DaySchedule;
 import study.yume.model.PlanDay;
 import study.yume.model.SpotUser;
 import study.yume.model.SpotVisitHistory;
+import study.yume.model.enums.ScheduleMode;
 import study.yume.repository.PlanDayRepository;
 import study.yume.repository.DayScheduleRepository;
 import study.yume.repository.SpotUserRepository;
 import study.yume.repository.SpotVisitHistoryRepository;
 
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
@@ -84,15 +86,45 @@ public class DayScheduleService {
     public List<DayScheduleResponse> createSchedule(Long userId, Long dayId, ScheduleCreateRequest req) {
         List<DaySchedule> schedules = dayScheduleRepository.findAllByUserIdAndPlanDayIdOrderByScheduleOrderAsc(userId, dayId);
 
+        if (req.scheduleOrder() < 0 || req.scheduleOrder() > schedules.size()) {
+            throw new IllegalArgumentException("일정을 추가할 위치가 올바르지 않습니다.");
+        }
+
+        PlanDay planDay = findDayByUserIdAndId(userId, dayId);
         DaySchedule daySchedule = new DaySchedule();
         daySchedule.setUserId(userId);
-        daySchedule.setPlanDay(findDayByUserIdAndId(userId, dayId));
+        daySchedule.setPlanDay(planDay);
         daySchedule.setScheduleOrder(req.scheduleOrder());
-        daySchedule.setStartTime(LocalTime.of(9, 0));
-        daySchedule.setFixedStartTime(false);
+        daySchedule.setStartTime(req.startTime() != null
+                ? req.startTime()
+                : planDay.getScheduleMode() == ScheduleMode.SIMPLE ? null : LocalTime.of(9, 0));
+        daySchedule.setFixedStartTime(req.startTime() != null);
         daySchedule.setDuration(60);
+        daySchedule.setMemo(req.memo());
+
+        if (req.spotUserId() != null) {
+            SpotUser spotUser = spotUserRepository.findByUserIdAndId(userId, req.spotUserId())
+                    .orElseThrow(() -> new EntityNotFoundException("장소를 찾을 수 없습니다."));
+            daySchedule.setSpotUser(spotUser);
+            daySchedule.setSpotNameSnapshot(
+                    spotUser.getCustomName() == null || spotUser.getCustomName().isBlank()
+                            ? spotUser.getSpot().getSpotName()
+                            : spotUser.getCustomName()
+            );
+            daySchedule.setSpotLocationSnapshot(spotUser.getSpot().getLocation());
+            daySchedule.setSpotTypeSnapshot(spotUser.getSpotType());
+        } else if (req.spotName() != null && !req.spotName().isBlank()) {
+            daySchedule.setSpotNameSnapshot(req.spotName().trim());
+            if (req.lat() != null && req.lng() != null) {
+                daySchedule.setSpotLocationSnapshot(
+                        geometryFactory.createPoint(new Coordinate(req.lng(), req.lat()))
+                );
+                daySchedule.setSpotTypeSnapshot(req.spotType());
+            }
+        }
 
         schedules.add(req.scheduleOrder(), daySchedule);
+        if (planDay.getScheduleMode() == ScheduleMode.SIMPLE) adjustSimpleDurations(schedules);
 
         List<DaySchedule> updatedSchedules= recalculateTimesForDay(null,null, schedules);
         dayScheduleRepository.saveAll(updatedSchedules);
@@ -126,7 +158,12 @@ public class DayScheduleService {
         if (req.memo() != null) schedule.setMemo(req.memo());
         if (req.movingMemo() != null) schedule.setMovingMemo(req.movingMemo());
 
-        List<DaySchedule> updatedSchedules= recalculateTimesForDay(userId, schedule.getPlanDay().getId(),null);
+        List<DaySchedule> schedules = dayScheduleRepository.findAllByUserIdAndPlanDayIdOrderByScheduleOrderAsc(
+                userId,
+                schedule.getPlanDay().getId()
+        );
+        if (schedule.getPlanDay().getScheduleMode() == ScheduleMode.SIMPLE) adjustSimpleDurations(schedules);
+        List<DaySchedule> updatedSchedules= recalculateTimesForDay(null, null, schedules);
         dayScheduleRepository.saveAll(updatedSchedules);
 
         return updatedSchedules.stream()
@@ -207,6 +244,20 @@ public class DayScheduleService {
     private List<DaySchedule> recalculateTimesForDay(Long userId, Long dayId, List<DaySchedule> schedules) {
         if (schedules == null) schedules = dayScheduleRepository.findAllByUserIdAndPlanDayIdOrderByScheduleOrderAsc(userId, dayId);
 
+        boolean simpleMode = schedules.stream().anyMatch(schedule ->
+                schedule.getPlanDay() != null && schedule.getPlanDay().getScheduleMode() == ScheduleMode.SIMPLE
+        );
+        if (simpleMode) {
+            for (int i = 0; i < schedules.size(); i++) {
+                DaySchedule current = schedules.get(i);
+                current.setScheduleOrder(i);
+                current.setEndTime(current.getStartTime() == null
+                        ? null
+                        : current.getStartTime().plusMinutes(current.getDuration()));
+            }
+            return schedules;
+        }
+
         for (int i = 0; i < schedules.size(); i++) {
             DaySchedule current = schedules.get(i);
             current.setScheduleOrder(i);
@@ -223,6 +274,17 @@ public class DayScheduleService {
             }
         }
         return schedules;
+    }
+
+    private void adjustSimpleDurations(List<DaySchedule> schedules) {
+        for (int i = 0; i < schedules.size() - 1; i++) {
+            DaySchedule current = schedules.get(i);
+            DaySchedule next = schedules.get(i + 1);
+            if (current.getStartTime() == null || next.getStartTime() == null || !next.isFixedStartTime()) continue;
+
+            long minutes = Duration.between(current.getStartTime(), next.getStartTime()).toMinutes();
+            if (minutes > 0 && minutes <= 24 * 60) current.setDuration((int) minutes);
+        }
     }
 
 

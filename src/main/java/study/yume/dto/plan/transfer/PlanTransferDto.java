@@ -2,6 +2,7 @@ package study.yume.dto.plan.transfer;
 
 import study.yume.model.enums.SpotType;
 import study.yume.model.enums.Transportation;
+import study.yume.model.enums.ScheduleMode;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -20,6 +21,7 @@ public record PlanTransferDto(
             String dayName,
             Integer dayOrder,
             String memo,
+            ScheduleMode scheduleMode,
             List<Schedule> schedules
     ) {
     }

@@ -2,12 +2,18 @@ spring:
   application:
     name: yume
   config:
-    import: optional:file:.env[.properties]
+    import: optional:file:.env[.properties],optional:file:back/.env[.properties]
   datasource:
     url: ${DB_HOST_URL:jdbc:mysql://localhost:3306/yume}
     username: ${DB_HOST_USERNAME}
     password: ${DB_HOST_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+    baseline-version: 0
+    clean-disabled: true
   jpa:
     database-platform: org.hibernate.dialect.MySQLDialect
     show-sql: false

@@ -13,6 +13,7 @@ import study.yume.model.DaySchedule;
 import study.yume.model.Plan;
 import study.yume.model.PlanDay;
 import study.yume.model.SpotUser;
+import study.yume.model.enums.ScheduleMode;
 import study.yume.repository.DayScheduleRepository;
 import study.yume.repository.PlanDayRepository;
 import study.yume.repository.PlanRepository;
@@ -51,6 +52,7 @@ public class PlanTransferService {
                         day.getDayName(),
                         day.getDayOrder(),
                         day.getMemo(),
+                        day.getScheduleMode(),
                         dayScheduleRepository
                                 .findAllByUserIdAndPlanDayIdOrderByScheduleOrderAsc(userId, day.getId())
                                 .stream()
@@ -104,6 +106,7 @@ public class PlanTransferService {
             day.setDayName(importedDay.dayName());
             day.setDayOrder(importedDay.dayOrder());
             day.setMemo(importedDay.memo());
+            day.setScheduleMode(importedDay.scheduleMode() == null ? ScheduleMode.DETAILED : importedDay.scheduleMode());
             day = planDayRepository.save(day);
 
             List<PlanTransferDto.Schedule> schedules = importedDay.schedules() == null

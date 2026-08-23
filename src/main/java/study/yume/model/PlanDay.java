@@ -5,6 +5,7 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import study.yume.model.enums.ScheduleMode;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -30,6 +31,9 @@ public class PlanDay extends BaseTimeEntity{
     @Column(nullable = false)
     private Integer dayOrder;
     private String memo;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private ScheduleMode scheduleMode = ScheduleMode.DETAILED;
 
     @OneToMany(mappedBy = "planDay", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("scheduleOrder ASC")

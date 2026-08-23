@@ -53,9 +53,6 @@ jobs:
       - name: Make Gradle wrapper executable
         run: chmod +x gradlew
 
-      - name: Apply and validate Flyway migrations
-        run: ./gradlew flywayMigrate flywayValidate --no-daemon
-
       - name: Test
         run: ./gradlew test --no-daemon
 

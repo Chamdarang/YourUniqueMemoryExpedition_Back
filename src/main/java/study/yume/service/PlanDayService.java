@@ -15,6 +15,7 @@ import study.yume.dto.planday.response.PlanDayResponse;
 import study.yume.model.Plan;
 import study.yume.model.PlanDay;
 import study.yume.model.enums.SwapMode;
+import study.yume.model.enums.ScheduleMode;
 import study.yume.repository.PlanDayRepository;
 import study.yume.repository.PlanRepository;
 
@@ -34,6 +35,7 @@ public class PlanDayService {
         planDay.setDayName(req.dayName());
         planDay.setDayOrder(1);
         planDay.setPlan(null);
+        planDay.setScheduleMode(req.scheduleMode() == null ? ScheduleMode.DETAILED : req.scheduleMode());
 
         return PlanDayResponse.toDto(planDayRepository.save(planDay));
     }
@@ -64,6 +66,7 @@ public class PlanDayService {
         planDay.setDayName(req.dayName());
         planDay.setDayOrder(req.dayOrder());
         planDay.setPlan(plan);
+        planDay.setScheduleMode(req.scheduleMode() == null ? ScheduleMode.DETAILED : req.scheduleMode());
 
         return PlanDayResponse.toDto(planDayRepository.save(planDay));
     }
@@ -87,6 +90,7 @@ public class PlanDayService {
         PlanDay planDay = findDayByUserIdAndId(userId,dayId);
         if(req.dayName()!=null) planDay.setDayName(req.dayName());
         if(req.memo()!=null) planDay.setMemo(req.memo());
+        if(req.scheduleMode()!=null) planDay.setScheduleMode(req.scheduleMode());
         return PlanDayResponse.toDto(planDayRepository.save(planDay));
     }
 

@@ -19,6 +19,7 @@ import study.yume.dto.plan.response.PlanImportPreviewResponse;
 import study.yume.dto.plan.transfer.PlanTransferDto;
 import study.yume.model.enums.SpotType;
 import study.yume.model.enums.Transportation;
+import study.yume.model.enums.ScheduleMode;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -170,6 +171,7 @@ public class GeneralPlanImportService {
                     (index + 1) + "일차" + (rawDay.label().isBlank() ? "" : " (" + rawDay.label() + ")"),
                     index + 1,
                     String.join("\n\n", rawDay.memos()),
+                    ScheduleMode.DETAILED,
                     schedules
             ));
         }

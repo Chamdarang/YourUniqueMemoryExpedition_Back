@@ -10,7 +10,12 @@ import org.springframework.transaction.annotation.Transactional;
 import study.yume.dto.schedule.request.ScheduleCreateRequest;
 import study.yume.dto.schedule.request.ScheduleReorderRequest;
 import study.yume.dto.schedule.request.ScheduleUpdateRequest;
+import study.yume.dto.schedule.request.ScheduleSpotLinkRequest;
+import study.yume.dto.schedule.request.ScheduleTransferRequest;
+import study.yume.dto.route.request.DayRouteApplyRequest;
 import study.yume.dto.schedule.response.DayScheduleResponse;
+import study.yume.dto.schedule.response.UnlinkedSpotGroupResponse;
+import study.yume.dto.schedule.response.ScheduleTransferResponse;
 import study.yume.exception.UsedScheduleProjection;
 import study.yume.model.DaySchedule;
 import study.yume.model.PlanDay;
@@ -21,11 +26,18 @@ import study.yume.repository.PlanDayRepository;
 import study.yume.repository.DayScheduleRepository;
 import study.yume.repository.SpotUserRepository;
 import study.yume.repository.SpotVisitHistoryRepository;
+import study.yume.repository.PlanRepository;
 
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
+import java.util.LinkedHashMap;
+import java.util.Locale;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -36,6 +48,7 @@ public class DayScheduleService {
     private final PlanDayRepository plandayRepository;
     private final SpotUserRepository spotUserRepository;
     private final SpotVisitHistoryRepository spotVisitHistoryRepository;
+    private final PlanRepository planRepository;
     private final GeometryFactory geometryFactory = new GeometryFactory(new PrecisionModel(), 4326);
 
     @Transactional(readOnly = true)
@@ -190,6 +203,87 @@ public class DayScheduleService {
                 .toList();
     }
 
+    public ScheduleTransferResponse transferSchedule(Long userId, Long scheduleId, ScheduleTransferRequest req) {
+        if (req == null || req.targetDayId() == null) {
+            throw new IllegalArgumentException("대상 일차를 선택해 주세요.");
+        }
+
+        DaySchedule source = findScheduleByUserIdAndId(userId, scheduleId);
+        PlanDay sourceDay = source.getPlanDay();
+        PlanDay targetDay = findDayByUserIdAndId(userId, req.targetDayId());
+        if (sourceDay.getId().equals(targetDay.getId())) {
+            throw new IllegalArgumentException("현재 일차가 아닌 다른 일차를 선택해 주세요.");
+        }
+
+        List<DaySchedule> sourceSchedules = new java.util.ArrayList<>(
+                dayScheduleRepository.findAllByUserIdAndPlanDayIdOrderByScheduleOrderAsc(userId, sourceDay.getId())
+        );
+        List<DaySchedule> targetSchedules = new java.util.ArrayList<>(
+                dayScheduleRepository.findAllByUserIdAndPlanDayIdOrderByScheduleOrderAsc(userId, targetDay.getId())
+        );
+        int targetOrder = req.targetOrder() == null ? targetSchedules.size() : req.targetOrder();
+        if (targetOrder < 0 || targetOrder > targetSchedules.size()) {
+            throw new IllegalArgumentException("일정을 옮길 위치가 올바르지 않습니다.");
+        }
+
+        DaySchedule transferred;
+        if (req.copy()) {
+            transferred = copySchedule(source, targetDay);
+        } else {
+            if (!sourceSchedules.remove(source)) throw new EntityNotFoundException("원본 일정을 찾을 수 없습니다.");
+            transferred = source;
+            transferred.setPlanDay(targetDay);
+        }
+        targetSchedules.add(targetOrder, transferred);
+
+        if (targetDay.getScheduleMode() == ScheduleMode.DETAILED
+                && targetOrder == 0
+                && transferred.getStartTime() == null) {
+            transferred.setStartTime(LocalTime.of(9, 0));
+        }
+        if (!req.copy()) {
+            if (sourceDay.getScheduleMode() == ScheduleMode.SIMPLE) adjustSimpleDurations(sourceSchedules);
+            sourceSchedules = recalculateTimesForDay(null, null, sourceSchedules);
+            dayScheduleRepository.saveAll(sourceSchedules);
+        }
+        if (targetDay.getScheduleMode() == ScheduleMode.SIMPLE) adjustSimpleDurations(targetSchedules);
+        targetSchedules = recalculateTimesForDay(null, null, targetSchedules);
+        dayScheduleRepository.saveAll(targetSchedules);
+
+        return new ScheduleTransferResponse(
+                transferred.getId(),
+                sourceDay.getId(),
+                targetDay.getId(),
+                sourceSchedules.stream().map(DayScheduleResponse::toDto).toList(),
+                targetSchedules.stream().map(DayScheduleResponse::toDto).toList()
+        );
+    }
+
+    private DaySchedule copySchedule(DaySchedule source, PlanDay targetDay) {
+        DaySchedule copy = new DaySchedule();
+        copy.setUserId(source.getUserId());
+        copy.setPlanDay(targetDay);
+        copy.setSpotUser(source.getSpotUser());
+        copy.setSpotNameSnapshot(source.getSpotNameSnapshot());
+        copy.setSpotLocationSnapshot(source.getSpotLocationSnapshot() == null
+                ? null
+                : (org.locationtech.jts.geom.Point) source.getSpotLocationSnapshot().copy());
+        copy.setSpotTypeSnapshot(source.getSpotTypeSnapshot());
+        copy.setIsChecked(false);
+        copy.setIsSkipped(false);
+        copy.setStartTime(source.getStartTime());
+        copy.setFixedStartTime(source.isFixedStartTime());
+        copy.setDuration(source.getDuration());
+        copy.setEndTime(source.getEndTime());
+        copy.setMovingDuration(source.getMovingDuration());
+        copy.setExtraDuration(source.getExtraDuration());
+        copy.setExtraMovingDuration(source.getExtraMovingDuration());
+        copy.setTransportation(source.getTransportation());
+        copy.setMemo(source.getMemo());
+        copy.setMovingMemo(source.getMovingMemo());
+        return copy;
+    }
+
     public List<DayScheduleResponse> deleteSchedule(Long userId, Long scheduleId) {
         DaySchedule schedule = findScheduleByUserIdAndId(userId, scheduleId);
         dayScheduleRepository.delete(schedule);
@@ -202,10 +296,12 @@ public class DayScheduleService {
     }
 
 
+    @Transactional
     public void updateVisit(Long userId, Long scheduleId){
         DaySchedule schedule = findScheduleByUserIdAndId(userId,scheduleId);
         boolean newCheckedState = !schedule.getIsChecked();
         schedule.setIsChecked(newCheckedState);
+        if (newCheckedState) schedule.setIsSkipped(false);
 
         if (schedule.getSpotUser()!=null ){
             SpotUser spotUser=schedule.getSpotUser();
@@ -264,9 +360,17 @@ public class DayScheduleService {
 
             if (i == 0 || current.isFixedStartTime()) {
                 // 첫 일정의 시작 시간은 보존, 종료 시간만 갱신
-                current.setEndTime(current.getStartTime().plusMinutes(current.getDuration()));
+                current.setEndTime(current.getStartTime() == null
+                        ? null
+                        : current.getStartTime().plusMinutes(current.getDuration()));
             } else {
                 DaySchedule prev = schedules.get(i - 1);
+                if (prev.getEndTime() == null) {
+                    current.setEndTime(current.getStartTime() == null
+                            ? null
+                            : current.getStartTime().plusMinutes(current.getDuration()));
+                    continue;
+                }
                 LocalTime nextStart = prev.getEndTime().plusMinutes(current.getMovingDuration());
 
                 current.setStartTime(nextStart);
@@ -274,6 +378,110 @@ public class DayScheduleService {
             }
         }
         return schedules;
+    }
+
+    public List<DayScheduleResponse> applyRouteEstimates(Long userId, Long dayId, DayRouteApplyRequest request) {
+        PlanDay day = findDayByUserIdAndId(userId, dayId);
+        if (request == null || request.routes() == null || request.routes().isEmpty()) {
+            throw new IllegalArgumentException("적용할 경로 계산 결과가 없습니다.");
+        }
+        if (request.routes().size() > 100) {
+            throw new IllegalArgumentException("한 번에 최대 100개 이동 구간을 적용할 수 있습니다.");
+        }
+
+        List<DaySchedule> schedules = dayScheduleRepository
+                .findAllByUserIdAndPlanDayIdOrderByScheduleOrderAsc(userId, dayId);
+        Map<Long, DaySchedule> byId = schedules.stream()
+                .collect(Collectors.toMap(DaySchedule::getId, Function.identity()));
+        HashSet<Long> appliedIds = new HashSet<>();
+        for (DayRouteApplyRequest.RouteDuration route : request.routes()) {
+            if (route == null || route.scheduleId() == null || route.estimatedDurationMinutes() == null) {
+                throw new IllegalArgumentException("적용할 이동시간 정보가 올바르지 않습니다.");
+            }
+            if (!appliedIds.add(route.scheduleId())) {
+                throw new IllegalArgumentException("같은 이동 구간이 중복되었습니다.");
+            }
+            if (route.estimatedDurationMinutes() < 0 || route.estimatedDurationMinutes() > 24 * 60) {
+                throw new IllegalArgumentException("예상 이동시간은 0분 이상 1440분 이하여야 합니다.");
+            }
+            DaySchedule target = byId.get(route.scheduleId());
+            if (target == null || target.getPlanDay() == null || !target.getPlanDay().getId().equals(day.getId())) {
+                throw new EntityNotFoundException("적용할 이동 구간을 찾을 수 없습니다.");
+            }
+            target.setMovingDuration(
+                    route.estimatedDurationMinutes() + Math.max(0, target.getExtraMovingDuration())
+            );
+        }
+
+        List<DaySchedule> updated = recalculateTimesForDay(null, null, schedules);
+        dayScheduleRepository.saveAll(updated);
+        return updated.stream().map(DayScheduleResponse::toDto).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<UnlinkedSpotGroupResponse> getUnlinkedSpotGroups(Long userId, Long planId) {
+        planRepository.findByUserIdAndId(userId, planId)
+                .orElseThrow(() -> new EntityNotFoundException("여행 계획을 찾을 수 없습니다."));
+        LinkedHashMap<String, UnlinkedSpotGroupResponse> groups = new LinkedHashMap<>();
+        dayScheduleRepository
+                .findAllByUserIdAndPlanDayPlanIdAndSpotUserIsNullOrderByPlanDayDayOrderAscScheduleOrderAsc(userId, planId)
+                .stream()
+                .map(DaySchedule::getSpotNameSnapshot)
+                .filter(name -> name != null && !name.isBlank())
+                .map(String::trim)
+                .forEach(name -> {
+                    String key = name.toLowerCase(Locale.ROOT);
+                    UnlinkedSpotGroupResponse current = groups.get(key);
+                    groups.put(key, new UnlinkedSpotGroupResponse(
+                            current == null ? name : current.spotName(),
+                            current == null ? 1L : current.scheduleCount() + 1
+                    ));
+                });
+        return List.copyOf(groups.values());
+    }
+
+    @Transactional
+    public int linkSchedulesToSpot(Long userId, Long planId, ScheduleSpotLinkRequest req) {
+        planRepository.findByUserIdAndId(userId, planId)
+                .orElseThrow(() -> new EntityNotFoundException("여행 계획을 찾을 수 없습니다."));
+        if (req.sourceSpotName() == null || req.sourceSpotName().isBlank() || req.spotUserId() == null) {
+            throw new IllegalArgumentException("연결할 일정 장소와 내 장소를 선택해 주세요.");
+        }
+        SpotUser target = spotUserRepository.findByUserIdAndId(userId, req.spotUserId())
+                .orElseThrow(() -> new EntityNotFoundException("내 장소를 찾을 수 없습니다."));
+        List<DaySchedule> matches = dayScheduleRepository
+                .findAllByUserIdAndPlanDayPlanIdAndSpotUserIsNullOrderByPlanDayDayOrderAscScheduleOrderAsc(userId, planId)
+                .stream()
+                .filter(schedule -> schedule.getSpotNameSnapshot() != null
+                        && schedule.getSpotNameSnapshot().trim().equalsIgnoreCase(req.sourceSpotName().trim()))
+                .toList();
+        for (DaySchedule schedule : matches) {
+            schedule.setSpotUser(target);
+            schedule.setSpotNameSnapshot(target.getCustomName() == null || target.getCustomName().isBlank()
+                    ? target.getSpot().getSpotName()
+                    : target.getCustomName());
+            schedule.setSpotLocationSnapshot((org.locationtech.jts.geom.Point) target.getSpot().getLocation().copy());
+            schedule.setSpotTypeSnapshot(target.getSpotType());
+        }
+        dayScheduleRepository.saveAll(matches);
+        return matches.size();
+    }
+
+    @Transactional
+    public void updateSkip(Long userId, Long scheduleId) {
+        DaySchedule schedule = findScheduleByUserIdAndId(userId, scheduleId);
+        boolean newSkippedState = !Boolean.TRUE.equals(schedule.getIsSkipped());
+        schedule.setIsSkipped(newSkippedState);
+        if (newSkippedState && Boolean.TRUE.equals(schedule.getIsChecked())) {
+            schedule.setIsChecked(false);
+            if (schedule.getSpotUser() != null) {
+                spotVisitHistoryRepository.deleteByUserIdAndSpotUserIdAndDayId(
+                        userId,
+                        schedule.getSpotUser().getId(),
+                        schedule.getPlanDay().getId()
+                );
+            }
+        }
     }
 
     private void adjustSimpleDurations(List<DaySchedule> schedules) {

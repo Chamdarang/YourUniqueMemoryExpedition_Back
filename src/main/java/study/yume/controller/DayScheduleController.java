@@ -8,7 +8,11 @@ import study.yume.dto.ApiResponse;
 import study.yume.dto.schedule.request.ScheduleCreateRequest;
 import study.yume.dto.schedule.request.ScheduleReorderRequest;
 import study.yume.dto.schedule.request.ScheduleUpdateRequest;
+import study.yume.dto.schedule.request.ScheduleSpotLinkRequest;
+import study.yume.dto.schedule.request.ScheduleTransferRequest;
 import study.yume.dto.schedule.response.DayScheduleResponse;
+import study.yume.dto.schedule.response.ScheduleTransferResponse;
+import study.yume.dto.schedule.response.UnlinkedSpotGroupResponse;
 import study.yume.security.CustomUserDetails;
 import study.yume.service.DayScheduleService;
 
@@ -45,6 +49,14 @@ public class DayScheduleController {
         return ResponseEntity.ok(ApiResponse.success(dayScheduleService.updateSchedule(user.getId(), scheduleId,req)));
     }
 
+    @PostMapping("/{scheduleId}/transfer")
+    public ResponseEntity<ApiResponse<ScheduleTransferResponse>> transferSchedule(
+            @AuthenticationPrincipal CustomUserDetails user,
+            @PathVariable Long scheduleId,
+            @RequestBody ScheduleTransferRequest req) {
+        return ResponseEntity.ok(ApiResponse.success(dayScheduleService.transferSchedule(user.getId(), scheduleId, req)));
+    }
+
     @PatchMapping("day/{dayId}/{scheduleId}")
     public ResponseEntity<ApiResponse<List<DayScheduleResponse>>> reorderSchedule(
             @AuthenticationPrincipal CustomUserDetails user,
@@ -69,6 +81,29 @@ public class DayScheduleController {
             @PathVariable Long scheduleId) {
         dayScheduleService.updateVisit(user.getId(),scheduleId);
         return ResponseEntity.ok(ApiResponse.success(null));
+    }
+
+    @PatchMapping("/{scheduleId}/skip")
+    public ResponseEntity<ApiResponse<Void>> toggleScheduleSkip(
+            @AuthenticationPrincipal CustomUserDetails user,
+            @PathVariable Long scheduleId) {
+        dayScheduleService.updateSkip(user.getId(), scheduleId);
+        return ResponseEntity.ok(ApiResponse.success(null));
+    }
+
+    @GetMapping("/plan/{planId}/unlinked-spots")
+    public ResponseEntity<ApiResponse<List<UnlinkedSpotGroupResponse>>> getUnlinkedSpots(
+            @AuthenticationPrincipal CustomUserDetails user,
+            @PathVariable Long planId) {
+        return ResponseEntity.ok(ApiResponse.success(dayScheduleService.getUnlinkedSpotGroups(user.getId(), planId)));
+    }
+
+    @PatchMapping("/plan/{planId}/link-spot")
+    public ResponseEntity<ApiResponse<Integer>> linkSpot(
+            @AuthenticationPrincipal CustomUserDetails user,
+            @PathVariable Long planId,
+            @RequestBody ScheduleSpotLinkRequest req) {
+        return ResponseEntity.ok(ApiResponse.success(dayScheduleService.linkSchedulesToSpot(user.getId(), planId, req)));
     }
 
     //    @PutMapping("/day/{dayId}/sync")

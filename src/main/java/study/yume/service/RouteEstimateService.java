@@ -4,11 +4,14 @@ import com.fasterxml.jackson.databind.JsonNode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 import study.yume.dto.route.request.RouteEstimateRequest;
 import study.yume.dto.route.response.RouteEstimateResponse;
+import study.yume.exception.RateLimitExceededException;
 import study.yume.model.enums.Transportation;
 
 import java.math.BigDecimal;
@@ -20,6 +23,10 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.ArrayDeque;
+import java.util.Comparator;
+import java.util.Deque;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 @Slf4j
@@ -32,12 +39,27 @@ public class RouteEstimateService {
     private final RestClient navitimeRestClient;
     private final String apiKey;
     private final String navitimeApiKey;
+    private final long cacheTtlMillis;
+    private final int cacheMaxEntries;
+    private final int rateLimit;
+    private final long rateWindowMillis;
+    private final ConcurrentHashMap<RouteCacheKey, CachedRoute> cache = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<RouteCacheKey, Object> routeLocks = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Long, Deque<Long>> userRequests = new ConcurrentHashMap<>();
 
     public RouteEstimateService(
             RestClient.Builder restClientBuilder,
             @Value("${google.maps.routes-api-key:}") String apiKey,
-            @Value("${navitime.rapid-api-key:${NAVITIME_RAPID_API_KEY:}}") String navitimeApiKey
+            @Value("${navitime.rapid-api-key:${NAVITIME_RAPID_API_KEY:}}") String navitimeApiKey,
+            @Value("${route.estimate.cache-ttl-seconds:600}") long cacheTtlSeconds,
+            @Value("${route.estimate.cache-max-entries:500}") int cacheMaxEntries,
+            @Value("${route.estimate.rate-limit:60}") int rateLimit,
+            @Value("${route.estimate.rate-window-seconds:600}") long rateWindowSeconds
     ) {
+        SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
+        requestFactory.setConnectTimeout(5_000);
+        requestFactory.setReadTimeout(20_000);
+        restClientBuilder.requestFactory(requestFactory);
         this.restClient = restClientBuilder
                 .baseUrl("https://routes.googleapis.com")
                 .build();
@@ -46,10 +68,40 @@ public class RouteEstimateService {
                 .build();
         this.apiKey = apiKey;
         this.navitimeApiKey = navitimeApiKey;
+        this.cacheTtlMillis = Math.max(1, cacheTtlSeconds) * 1_000L;
+        this.cacheMaxEntries = Math.max(10, cacheMaxEntries);
+        this.rateLimit = Math.max(1, rateLimit);
+        this.rateWindowMillis = Math.max(1, rateWindowSeconds) * 1_000L;
     }
 
-    public RouteEstimateResponse estimate(RouteEstimateRequest request) {
+    public RouteEstimateResponse estimate(Long userId, RouteEstimateRequest request) {
         validate(request);
+        if (userId == null) throw new IllegalArgumentException("로그인이 필요합니다.");
+
+        long now = System.currentTimeMillis();
+        RouteCacheKey cacheKey = RouteCacheKey.from(request);
+        CachedRoute cached = cache.get(cacheKey);
+        if (cached != null && cached.expiresAt() > now) return cached.response();
+
+        Object lock = routeLocks.computeIfAbsent(cacheKey, ignored -> new Object());
+        try {
+            synchronized (lock) {
+                now = System.currentTimeMillis();
+                cached = cache.get(cacheKey);
+                if (cached != null && cached.expiresAt() > now) return cached.response();
+
+                checkRateLimit(userId, now);
+                RouteEstimateResponse response = estimateFromProvider(request);
+                cache.put(cacheKey, new CachedRoute(response, now + cacheTtlMillis));
+                trimCache(now);
+                return response;
+            }
+        } finally {
+            routeLocks.remove(cacheKey, lock);
+        }
+    }
+
+    private RouteEstimateResponse estimateFromProvider(RouteEstimateRequest request) {
         if (request.transportation() == Transportation.TRAIN) {
             return estimateWithNavitime(request);
         }
@@ -85,6 +137,9 @@ public class RouteEstimateService {
                     "Google 경로 API 호출에 실패했습니다. Routes API 활성화, API 키 제한, 할당량을 확인해 주세요.",
                     exception
             );
+        } catch (RestClientException exception) {
+            log.warn("route_provider_connection_error provider=google transportation={}", request.transportation(), exception);
+            throw new IllegalStateException("Google 경로 API 연결 시간이 초과되었습니다. 잠시 후 다시 시도해 주세요.", exception);
         }
 
         JsonNode route = response == null ? null : response.path("routes").path(0);
@@ -98,6 +153,37 @@ public class RouteEstimateService {
                 route.path("polyline").path("encodedPolyline").asText(),
                 ""
         );
+    }
+
+    private void checkRateLimit(Long userId, long now) {
+        Deque<Long> requests = userRequests.computeIfAbsent(userId, ignored -> new ArrayDeque<>());
+        synchronized (requests) {
+            long cutoff = now - rateWindowMillis;
+            while (!requests.isEmpty() && requests.peekFirst() < cutoff) requests.removeFirst();
+            if (requests.size() >= rateLimit) {
+                long retryAfterSeconds = Math.max(
+                        1,
+                        (requests.peekFirst() + rateWindowMillis - now + 999) / 1_000
+                );
+                throw new RateLimitExceededException(
+                        "경로 계산 요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.",
+                        retryAfterSeconds
+                );
+            }
+            requests.addLast(now);
+        }
+    }
+
+    private void trimCache(long now) {
+        if (cache.size() <= cacheMaxEntries) return;
+        cache.entrySet().removeIf(entry -> entry.getValue().expiresAt() <= now);
+        while (cache.size() > cacheMaxEntries) {
+            var oldest = cache.entrySet().stream()
+                    .min(Comparator.comparingLong(entry -> entry.getValue().expiresAt()))
+                    .orElse(null);
+            if (oldest == null) break;
+            cache.remove(oldest.getKey());
+        }
     }
 
     private RouteEstimateResponse estimateWithNavitime(RouteEstimateRequest request) {
@@ -140,6 +226,9 @@ public class RouteEstimateService {
                     message,
                     exception
             );
+        } catch (RestClientException exception) {
+            log.warn("route_provider_connection_error provider=navitime transportation={}", request.transportation(), exception);
+            throw new IllegalStateException("NAVITIME API 연결 시간이 초과되었습니다. 잠시 후 다시 시도해 주세요.", exception);
         }
 
         JsonNode route = response == null ? null : response.path("items").path(0);
@@ -308,7 +397,41 @@ public class RouteEstimateService {
         return seconds.divide(BigDecimal.valueOf(60), 0, RoundingMode.CEILING).intValue();
     }
 
+    private record CachedRoute(RouteEstimateResponse response, long expiresAt) {
+    }
+
+    private record RouteCacheKey(
+            long originLat,
+            long originLng,
+            long destinationLat,
+            long destinationLng,
+            Transportation transportation,
+            String departureMinute
+    ) {
+        private static RouteCacheKey from(RouteEstimateRequest request) {
+            String departure = request.transportation() == Transportation.TRAIN && request.departureTime() != null
+                    ? request.departureTime().trim()
+                    : "";
+            if (departure.length() > 16) departure = departure.substring(0, 16);
+            return new RouteCacheKey(
+                    roundedCoordinate(request.originLat()),
+                    roundedCoordinate(request.originLng()),
+                    roundedCoordinate(request.destinationLat()),
+                    roundedCoordinate(request.destinationLng()),
+                    request.transportation(),
+                    departure
+            );
+        }
+
+        private static long roundedCoordinate(double value) {
+            return Math.round(value * 100_000D);
+        }
+    }
+
     private void validate(RouteEstimateRequest request) {
+        if (request == null) {
+            throw new IllegalArgumentException("경로 계산 요청 정보가 없습니다.");
+        }
         if (request.transportation() == null) {
             throw new IllegalArgumentException("이동수단을 선택해 주세요.");
         }

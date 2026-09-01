@@ -83,13 +83,18 @@ public class PlanService {
     }
 
     @Transactional(readOnly = true)
-    public Page<PlanResponse> getFilteredPlans(Long userId, LocalDate from, LocalDate to, List<Integer> months, Pageable pageable) {
-        if (from == null && to == null && (months == null || months.isEmpty())) {
+    public Page<PlanResponse> getFilteredPlans(Long userId, LocalDate from, LocalDate to, List<Integer> months, String status, Pageable pageable) {
+        String normalizedStatus = status == null ? "ALL" : status.trim().toUpperCase();
+        if (!List.of("ALL", "UPCOMING", "PAST").contains(normalizedStatus)) {
+            throw new IllegalArgumentException("올바르지 않은 여행 상태 필터입니다.");
+        }
+
+        if (from == null && to == null && (months == null || months.isEmpty()) && normalizedStatus.equals("ALL")) {
             // 필터가 아예 없는 경우 전체 조회
             return getAllPlans(userId,pageable);
         }
 
-        return planRepository.findFilteredPlans(userId, from, to, months,pageable)
+        return planRepository.findFilteredPlans(userId, from, to, months, normalizedStatus, LocalDate.now(), pageable)
                 .map(PlanResponse::toDto);
     }
 

@@ -48,8 +48,9 @@ public class PlanController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             @RequestParam(required = false) List<Integer> months,
+            @RequestParam(required = false, defaultValue = "ALL") String status,
             @PageableDefault(sort = "createdAt",direction = Sort.Direction.DESC) Pageable pageable) {
-        return ResponseEntity.ok(ApiResponse.success(planService.getFilteredPlans(user.getId(), from, to, months, pageable)));
+        return ResponseEntity.ok(ApiResponse.success(planService.getFilteredPlans(user.getId(), from, to, months, status, pageable)));
     }
     @GetMapping("/upcoming")
     public ResponseEntity<ApiResponse<PlanResponse>> getUpcomingPlan(

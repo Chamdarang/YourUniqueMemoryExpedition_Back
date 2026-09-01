@@ -16,6 +16,8 @@ import java.util.Optional;
 public interface DayScheduleRepository extends JpaRepository<DaySchedule, Long> {
     Optional<DaySchedule> findByUserIdAndId(Long userId, Long id);
     List<DaySchedule> findAllByUserIdAndPlanDayIdOrderByScheduleOrderAsc(Long userId, Long dayId);
+    List<DaySchedule> findAllByUserIdAndPlanDayPlanIdOrderByPlanDayDayOrderAscScheduleOrderAsc(Long userId, Long planId);
+    List<DaySchedule> findAllByUserIdAndPlanDayPlanIdAndSpotUserIsNullOrderByPlanDayDayOrderAscScheduleOrderAsc(Long userId, Long planId);
     void deleteAllByUserIdAndPlanDayId(Long userId, Long dayId);
 
     @Query("SELECT " +

@@ -41,14 +41,16 @@ public class DaySchedule extends BaseTimeEntity {
     private SpotType spotTypeSnapshot;
     @Column(nullable = false)
     private Boolean isChecked=false;
-
     @Column(nullable = false)
+    private Boolean isSkipped=false;
+
+    @Column
     private LocalTime startTime;
     @Column(nullable = false)
     private boolean fixedStartTime;
     @Column(nullable = false)
     private int duration; //단위: 분
-    @Column(nullable = false)
+    @Column
     private LocalTime endTime;
 
     private int movingDuration;

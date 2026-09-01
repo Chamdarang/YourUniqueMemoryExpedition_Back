@@ -20,12 +20,17 @@ public interface PlanRepository extends JpaRepository<Plan, Long> {
     @Query("SELECT p FROM Plan p WHERE p.userId = :userId " +
             "AND (:from IS NULL OR p.planEndDate >= :from) " +
             "AND (:to IS NULL OR p.planStartDate <= :to) " +
-            "AND (COALESCE(:months, NULL) IS NULL OR MONTH(p.planStartDate) IN :months)")
+            "AND (COALESCE(:months, NULL) IS NULL OR MONTH(p.planStartDate) IN :months) " +
+            "AND (:status = 'ALL' " +
+            "OR (:status = 'UPCOMING' AND p.planStartDate > :today) " +
+            "OR (:status = 'PAST' AND p.planEndDate < :today))")
     Page<Plan> findFilteredPlans(
             @Param("userId") Long userId,
             @Param("from") LocalDate from,
             @Param("to") LocalDate to,
             @Param("months") List<Integer> months,
+            @Param("status") String status,
+            @Param("today") LocalDate today,
             Pageable pageable);
 
     @Query("SELECT p FROM Plan p WHERE p.userId = :userId " +

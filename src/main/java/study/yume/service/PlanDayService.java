@@ -7,6 +7,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import study.yume.dto.planday.request.PlanDayCreateRequest;
+import study.yume.dto.planday.request.PlanDayCopyRequest;
 import study.yume.dto.planday.request.PlanDayIndependentCreateRequest;
 import study.yume.dto.planday.request.PlanDaySwapRequest;
 import study.yume.dto.planday.request.PlanDayUpdateRequest;
@@ -14,10 +15,12 @@ import study.yume.dto.planday.response.PlanDayDetailResponse;
 import study.yume.dto.planday.response.PlanDayResponse;
 import study.yume.model.Plan;
 import study.yume.model.PlanDay;
+import study.yume.model.DaySchedule;
 import study.yume.model.enums.SwapMode;
 import study.yume.model.enums.ScheduleMode;
 import study.yume.repository.PlanDayRepository;
 import study.yume.repository.PlanRepository;
+import study.yume.repository.DayScheduleRepository;
 
 import java.util.List;
 
@@ -28,6 +31,7 @@ public class PlanDayService {
 
     private final PlanDayRepository planDayRepository;
     private final PlanRepository planRepository;
+    private final DayScheduleRepository dayScheduleRepository;
 
     public PlanDayResponse createIndependentDay(Long userId, PlanDayIndependentCreateRequest req){
         PlanDay planDay = new PlanDay();
@@ -107,6 +111,66 @@ public class PlanDayService {
         planDay.setDayOrder(1);
 
         return PlanDayResponse.toDto(planDayRepository.save(planDay));
+    }
+
+    @Transactional
+    public PlanDayResponse copyPlanDay(Long userId, Long sourceDayId, PlanDayCopyRequest req) {
+        PlanDay source = findDayByUserIdAndId(userId, sourceDayId);
+        Plan targetPlan = null;
+        int targetOrder = 1;
+
+        if (req.targetPlanId() != null) {
+            targetPlan = findPlanByUserIdAndId(userId, req.targetPlanId());
+            if (req.targetDayOrder() == null || req.targetDayOrder() < 1 || targetPlan.getPlanDays() == null
+                    || req.targetDayOrder() > targetPlan.getPlanDays()) {
+                throw new IllegalArgumentException("복제할 일차가 여행 기간을 벗어났습니다.");
+            }
+            if (planDayRepository.existsByUserIdAndPlanIdAndDayOrder(userId, targetPlan.getId(), req.targetDayOrder())) {
+                throw new IllegalArgumentException(req.targetDayOrder() + "일차 일정은 이미 존재합니다.");
+            }
+            targetOrder = req.targetDayOrder();
+        }
+
+        PlanDay copy = new PlanDay();
+        copy.setUserId(userId);
+        copy.setPlan(targetPlan);
+        copy.setDayOrder(targetOrder);
+        copy.setDayName(req.dayName() == null || req.dayName().isBlank()
+                ? source.getDayName() + " 복사본"
+                : req.dayName().trim());
+        copy.setMemo(source.getMemo());
+        copy.setScheduleMode(source.getScheduleMode());
+        copy = planDayRepository.save(copy);
+
+        List<DaySchedule> sourceSchedules = dayScheduleRepository
+                .findAllByUserIdAndPlanDayIdOrderByScheduleOrderAsc(userId, sourceDayId);
+        for (DaySchedule original : sourceSchedules) {
+            DaySchedule cloned = new DaySchedule();
+            cloned.setUserId(userId);
+            cloned.setPlanDay(copy);
+            cloned.setScheduleOrder(original.getScheduleOrder());
+            cloned.setSpotUser(original.getSpotUser());
+            cloned.setSpotNameSnapshot(original.getSpotNameSnapshot());
+            cloned.setSpotLocationSnapshot(original.getSpotLocationSnapshot() == null
+                    ? null
+                    : (org.locationtech.jts.geom.Point) original.getSpotLocationSnapshot().copy());
+            cloned.setSpotTypeSnapshot(original.getSpotTypeSnapshot());
+            cloned.setIsChecked(false);
+            cloned.setIsSkipped(false);
+            cloned.setStartTime(original.getStartTime());
+            cloned.setFixedStartTime(original.isFixedStartTime());
+            cloned.setDuration(original.getDuration());
+            cloned.setEndTime(original.getEndTime());
+            cloned.setMovingDuration(original.getMovingDuration());
+            cloned.setExtraDuration(original.getExtraDuration());
+            cloned.setExtraMovingDuration(original.getExtraMovingDuration());
+            cloned.setTransportation(original.getTransportation());
+            cloned.setMemo(original.getMemo());
+            cloned.setMovingMemo(original.getMovingMemo());
+            dayScheduleRepository.save(cloned);
+        }
+
+        return PlanDayResponse.toDto(copy);
     }
 
     public void swapPlanDay(Long userId, PlanDaySwapRequest req){

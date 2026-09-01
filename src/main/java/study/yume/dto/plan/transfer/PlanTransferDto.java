@@ -34,6 +34,7 @@ public record PlanTransferDto(
             Double lat,
             Double lng,
             Boolean isChecked,
+            Boolean isSkipped,
             LocalTime startTime,
             Boolean fixedStartTime,
             Integer duration,

@@ -14,6 +14,7 @@ public record DayScheduleResponse(
         String spotName,      // snapshot
         SpotType spotType,    // snapshot
         Boolean isChecked,
+        Boolean isSkipped,
         Double lat,  // snapshot
         Double lng,  // snapshot
         LocalTime startTime,
@@ -36,6 +37,7 @@ public record DayScheduleResponse(
                 schedule.getSpotNameSnapshot(),
                 schedule.getSpotTypeSnapshot(),
                 schedule.getIsChecked(),
+                Boolean.TRUE.equals(schedule.getIsSkipped()),
                 schedule.getSpotLocationSnapshot() != null ? schedule.getSpotLocationSnapshot().getY() : null,
                 schedule.getSpotLocationSnapshot() != null ? schedule.getSpotLocationSnapshot().getX() : null,
                 schedule.getStartTime(),

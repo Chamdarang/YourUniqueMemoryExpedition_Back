@@ -8,16 +8,23 @@ import org.locationtech.jts.geom.GeometryFactory;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import study.yume.dto.schedule.request.ScheduleCreateRequest;
+import study.yume.dto.schedule.request.ScheduleTransferRequest;
+import study.yume.dto.route.request.DayRouteApplyRequest;
 import study.yume.dto.schedule.request.ScheduleUpdateRequest;
 import study.yume.dto.schedule.response.DayScheduleResponse;
+import study.yume.dto.schedule.response.UnlinkedSpotGroupResponse;
+import study.yume.dto.schedule.response.ScheduleTransferResponse;
 import study.yume.model.DaySchedule;
+import study.yume.model.Plan;
 import study.yume.model.PlanDay;
 import study.yume.model.Spot;
 import study.yume.model.SpotUser;
 import study.yume.model.enums.SpotType;
 import study.yume.model.enums.ScheduleMode;
+import study.yume.model.enums.Transportation;
 import study.yume.repository.DayScheduleRepository;
 import study.yume.repository.PlanDayRepository;
+import study.yume.repository.PlanRepository;
 import study.yume.repository.SpotUserRepository;
 import study.yume.repository.SpotVisitHistoryRepository;
 
@@ -28,6 +35,7 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.never;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -42,6 +50,8 @@ class DayScheduleServiceTests {
     private SpotUserRepository spotUserRepository;
     @Mock
     private SpotVisitHistoryRepository spotVisitHistoryRepository;
+    @Mock
+    private PlanRepository planRepository;
 
     private DayScheduleService service;
 
@@ -51,7 +61,8 @@ class DayScheduleServiceTests {
                 dayScheduleRepository,
                 planDayRepository,
                 spotUserRepository,
-                spotVisitHistoryRepository
+                spotVisitHistoryRepository,
+                planRepository
         );
     }
 
@@ -217,6 +228,125 @@ class DayScheduleServiceTests {
         assertThat(result.get(0).fixedStartTime()).isFalse();
     }
 
+    @Test
+    void togglesSkippedStateSeparatelyFromVisitState() {
+        DaySchedule schedule = schedule(10L, LocalTime.of(9, 0), true);
+        when(dayScheduleRepository.findByUserIdAndId(1L, 10L)).thenReturn(Optional.of(schedule));
+
+        service.updateSkip(1L, 10L);
+
+        assertThat(schedule.getIsSkipped()).isTrue();
+        assertThat(schedule.getIsChecked()).isFalse();
+    }
+
+    @Test
+    void groupsUnlinkedSpotNamesIgnoringCaseAndWhitespace() {
+        Plan plan = new Plan();
+        plan.setId(50L);
+        DaySchedule first = schedule(10L, LocalTime.of(9, 0), true);
+        first.setSpotNameSnapshot("Tokyo Station");
+        DaySchedule second = schedule(11L, LocalTime.of(10, 0), true);
+        second.setSpotNameSnapshot("  tokyo station  ");
+
+        when(planRepository.findByUserIdAndId(1L, 50L)).thenReturn(Optional.of(plan));
+        when(dayScheduleRepository.findAllByUserIdAndPlanDayPlanIdAndSpotUserIsNullOrderByPlanDayDayOrderAscScheduleOrderAsc(1L, 50L))
+                .thenReturn(List.of(first, second));
+
+        List<UnlinkedSpotGroupResponse> result = service.getUnlinkedSpotGroups(1L, 50L);
+
+        assertThat(result).containsExactly(new UnlinkedSpotGroupResponse("Tokyo Station", 2L));
+    }
+
+    @Test
+    void appliesEstimatedMovementAndPreservesMovementBuffer() {
+        DaySchedule first = schedule(10L, LocalTime.of(9, 0), true);
+        DaySchedule second = schedule(11L, LocalTime.of(10, 20), false);
+        second.setPlanDay(first.getPlanDay());
+        second.setMovingDuration(20);
+        second.setExtraMovingDuration(10);
+        when(planDayRepository.findByUserIdAndId(1L, 20L)).thenReturn(Optional.of(first.getPlanDay()));
+        when(dayScheduleRepository.findAllByUserIdAndPlanDayIdOrderByScheduleOrderAsc(1L, 20L))
+                .thenReturn(List.of(first, second));
+
+        List<DayScheduleResponse> result = service.applyRouteEstimates(
+                1L,
+                20L,
+                new DayRouteApplyRequest(List.of(new DayRouteApplyRequest.RouteDuration(11L, 35)))
+        );
+
+        assertThat(result.get(1).movingDuration()).isEqualTo(45);
+        assertThat(result.get(1).startTime()).isEqualTo(LocalTime.of(10, 45));
+        assertThat(result.get(1).extraMovingDuration()).isEqualTo(10);
+    }
+
+    @Test
+    void movesScheduleToTopOfAnotherOwnedDayAndRecalculatesBothDays() {
+        DaySchedule moving = schedule(10L, LocalTime.of(9, 0), true);
+        DaySchedule sourceRemaining = schedule(11L, LocalTime.of(11, 0), true);
+        sourceRemaining.setPlanDay(moving.getPlanDay());
+
+        PlanDay targetDay = new PlanDay();
+        targetDay.setId(30L);
+        targetDay.setScheduleMode(ScheduleMode.DETAILED);
+        DaySchedule targetExisting = schedule(12L, LocalTime.of(14, 0), true);
+        targetExisting.setPlanDay(targetDay);
+
+        when(dayScheduleRepository.findByUserIdAndId(1L, 10L)).thenReturn(Optional.of(moving));
+        when(planDayRepository.findByUserIdAndId(1L, 30L)).thenReturn(Optional.of(targetDay));
+        when(dayScheduleRepository.findAllByUserIdAndPlanDayIdOrderByScheduleOrderAsc(1L, 20L))
+                .thenReturn(new ArrayList<>(List.of(moving, sourceRemaining)));
+        when(dayScheduleRepository.findAllByUserIdAndPlanDayIdOrderByScheduleOrderAsc(1L, 30L))
+                .thenReturn(new ArrayList<>(List.of(targetExisting)));
+
+        ScheduleTransferResponse result = service.transferSchedule(
+                1L, 10L, new ScheduleTransferRequest(30L, 0, false)
+        );
+
+        assertThat(moving.getPlanDay()).isSameAs(targetDay);
+        assertThat(result.sourceSchedules()).extracting(DayScheduleResponse::id).containsExactly(11L);
+        assertThat(result.targetSchedules()).extracting(DayScheduleResponse::id).containsExactly(10L, 12L);
+        assertThat(result.targetSchedules()).extracting(DayScheduleResponse::scheduleOrder).containsExactly(0, 1);
+    }
+
+    @Test
+    void copiesScheduleMetadataAndResetsProgressState() {
+        DaySchedule source = schedule(10L, LocalTime.of(9, 30), true);
+        source.setIsChecked(true);
+        source.setIsSkipped(true);
+        source.setMemo("예약 메모");
+        source.setMovingMemo("전철 환승");
+        source.setTransportation(Transportation.TRAIN);
+
+        PlanDay targetDay = new PlanDay();
+        targetDay.setId(30L);
+        targetDay.setScheduleMode(ScheduleMode.DETAILED);
+
+        when(dayScheduleRepository.findByUserIdAndId(1L, 10L)).thenReturn(Optional.of(source));
+        when(planDayRepository.findByUserIdAndId(1L, 30L)).thenReturn(Optional.of(targetDay));
+        when(dayScheduleRepository.findAllByUserIdAndPlanDayIdOrderByScheduleOrderAsc(1L, 20L))
+                .thenReturn(new ArrayList<>(List.of(source)));
+        when(dayScheduleRepository.findAllByUserIdAndPlanDayIdOrderByScheduleOrderAsc(1L, 30L))
+                .thenReturn(new ArrayList<>());
+        when(dayScheduleRepository.saveAll(anyList())).thenAnswer(invocation -> {
+            List<DaySchedule> saved = invocation.getArgument(0);
+            saved.stream().filter(schedule -> schedule.getId() == null).forEach(schedule -> schedule.setId(99L));
+            return saved;
+        });
+
+        ScheduleTransferResponse result = service.transferSchedule(
+                1L, 10L, new ScheduleTransferRequest(30L, null, true)
+        );
+
+        DayScheduleResponse copied = result.targetSchedules().get(0);
+        assertThat(copied.id()).isEqualTo(99L);
+        assertThat(copied.memo()).isEqualTo("예약 메모");
+        assertThat(copied.movingMemo()).isEqualTo("전철 환승");
+        assertThat(copied.transportation()).isEqualTo(Transportation.TRAIN);
+        assertThat(copied.isChecked()).isFalse();
+        assertThat(copied.isSkipped()).isFalse();
+        assertThat(result.sourceSchedules()).extracting(DayScheduleResponse::id).containsExactly(10L);
+    }
+
     private DaySchedule schedule(Long id, LocalTime startTime, boolean fixedStartTime) {
         PlanDay day = new PlanDay();
         day.setId(20L);
@@ -227,6 +357,8 @@ class DayScheduleServiceTests {
         schedule.setPlanDay(day);
         schedule.setStartTime(startTime);
         schedule.setFixedStartTime(fixedStartTime);
+        schedule.setIsChecked(false);
+        schedule.setIsSkipped(false);
         schedule.setDuration(60);
         schedule.setEndTime(startTime.plusHours(1));
         return schedule;

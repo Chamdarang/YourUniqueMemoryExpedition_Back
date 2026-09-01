@@ -136,6 +136,7 @@ public class PlanTransferService {
                 schedule.getSpotLocationSnapshot() == null ? null : schedule.getSpotLocationSnapshot().getY(),
                 schedule.getSpotLocationSnapshot() == null ? null : schedule.getSpotLocationSnapshot().getX(),
                 schedule.getIsChecked(),
+                schedule.getIsSkipped(),
                 schedule.getStartTime(),
                 schedule.isFixedStartTime(),
                 schedule.getDuration(),
@@ -177,12 +178,13 @@ public class PlanTransferService {
                 ? imported.spotType()
                 : linkedSpot == null ? null : linkedSpot.getSpotType());
         schedule.setIsChecked(Boolean.TRUE.equals(imported.isChecked()));
+        schedule.setIsSkipped(Boolean.TRUE.equals(imported.isSkipped()));
         schedule.setStartTime(imported.startTime());
         schedule.setFixedStartTime(Boolean.TRUE.equals(imported.fixedStartTime()));
         schedule.setDuration(imported.duration());
-        schedule.setEndTime(imported.endTime() == null
-                ? imported.startTime().plusMinutes(imported.duration())
-                : imported.endTime());
+        schedule.setEndTime(imported.endTime() != null
+                ? imported.endTime()
+                : imported.startTime() == null ? null : imported.startTime().plusMinutes(imported.duration()));
         schedule.setMovingDuration(valueOrZero(imported.movingDuration()));
         schedule.setExtraDuration(valueOrZero(imported.extraDuration()));
         schedule.setExtraMovingDuration(valueOrZero(imported.extraMovingDuration()));
@@ -230,7 +232,7 @@ public class PlanTransferService {
 
             for (PlanTransferDto.Schedule schedule
                     : day.schedules() == null ? List.<PlanTransferDto.Schedule>of() : day.schedules()) {
-                if (schedule.startTime() == null) {
+                if (schedule.startTime() == null && day.scheduleMode() != ScheduleMode.SIMPLE) {
                     throw new IllegalArgumentException("일정 시작 시간이 필요합니다.");
                 }
                 if (schedule.duration() == null || schedule.duration() < 0

@@ -10,6 +10,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import study.yume.dto.ApiResponse;
 import study.yume.dto.planday.request.PlanDayCreateRequest;
+import study.yume.dto.planday.request.PlanDayCopyRequest;
 import study.yume.dto.planday.request.PlanDayIndependentCreateRequest;
 import study.yume.dto.planday.request.PlanDaySwapRequest;
 import study.yume.dto.planday.request.PlanDayUpdateRequest;
@@ -76,6 +77,14 @@ public class PlanDayController {
         return ResponseEntity.ok(ApiResponse.success(planDayService.detachPlanDay(user.getId(),dayId)));
     }
 
+    @PostMapping("/{dayId}/copy")
+    public ResponseEntity<ApiResponse<PlanDayResponse>> copyPlanDay(
+            @AuthenticationPrincipal CustomUserDetails user,
+            @PathVariable Long dayId,
+            @RequestBody PlanDayCopyRequest req) {
+        return ResponseEntity.ok(ApiResponse.success(planDayService.copyPlanDay(user.getId(), dayId, req)));
+    }
+
     @PostMapping("/swap")
     public ResponseEntity<ApiResponse<Void>> swapPlanDay(
             @AuthenticationPrincipal CustomUserDetails user,
@@ -92,4 +101,3 @@ public class PlanDayController {
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 }
-    

@@ -415,6 +415,7 @@ public class GeneralPlanImportService {
                     null,
                     null,
                     false,
+                    false,
                     draft.startTime,
                     draft.fixedStartTime,
                     draft.durationMinutes,

@@ -5,6 +5,8 @@ import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
 import study.yume.service.MapService;
 
+import java.util.Locale;
+
 @RestController
 @RequestMapping("/api/maps")
 @RequiredArgsConstructor
@@ -13,7 +15,7 @@ public class MapController {
 
     @GetMapping(value = "/static", produces = MediaType.IMAGE_PNG_VALUE)
     public ResponseEntity<byte[]> staticMap(@RequestParam("query") String query) {
-        if (query.contains("key=")) {
+        if (query.toLowerCase(Locale.ROOT).contains("key=")) {
             return ResponseEntity.badRequest().build();
         }
 

@@ -17,7 +17,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class GeneralPlanImportServiceTests {
 
-    private final GeneralPlanImportService service = new GeneralPlanImportService();
+    private final PlanImportTableReader tableReader = new PlanImportTableReader();
+    private final PlanImportEntryParser entryParser = new PlanImportEntryParser();
+    private final GeneralPlanImportService service = new GeneralPlanImportService(
+            tableReader,
+            new GeneralPlanImportPreviewBuilder(
+                    tableReader,
+                    entryParser,
+                    new PlanImportScheduleBuilder(entryParser)
+            )
+    );
 
     @Test
     void infersStayDurationFromNextExplicitStartTime() {

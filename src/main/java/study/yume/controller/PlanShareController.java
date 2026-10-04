@@ -9,9 +9,11 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
 import study.yume.dto.ApiResponse;
+import study.yume.dto.planshare.request.CreatePlanShareRequest;
 import study.yume.dto.planshare.response.PlanShareLinkResponse;
 import study.yume.dto.planshare.response.PlanShareStatusResponse;
 import study.yume.dto.planshare.response.PublicPlanShareResponse;
@@ -38,11 +40,14 @@ public class PlanShareController {
     @PostMapping("/api/plans/{planId}/share")
     public ResponseEntity<ApiResponse<PlanShareLinkResponse>> createShareLink(
             @AuthenticationPrincipal CustomUserDetails user,
-            @PathVariable Long planId
+            @PathVariable Long planId,
+            @RequestBody(required = false) CreatePlanShareRequest request
     ) {
         return ResponseEntity.ok()
                 .cacheControl(CacheControl.noStore())
-                .body(ApiResponse.success(planShareService.createOrRotate(user.getId(), planId)));
+                .body(ApiResponse.success(planShareService.createOrRotate(
+                        user.getId(), planId, request == null ? null : request.expiresInDays()
+                )));
     }
 
     @DeleteMapping("/api/plans/{planId}/share")

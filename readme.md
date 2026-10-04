@@ -16,6 +16,7 @@
 DB_HOST_USERNAME=your_database_username
 DB_HOST_PASSWORD=your_database_password
 JWT_SECRET_KEY=at_least_32_bytes_of_random_secret
+PLAN_SHARE_ENCRYPTION_KEY=another_at_least_32_bytes_of_random_secret
 AUTH_SIGNUP_ENABLED=true
 SERVER_FORWARD_HEADERS_STRATEGY=native
 GOOGLE_MAPS_ROUTES_API_KEY=your_server_routes_api_key
@@ -26,6 +27,7 @@ NAVITIME_RAPID_API_KEY=your_rapidapi_key
 `DB_HOST_URL`도 설정합니다.  
 정적 지도 이미지에 별도 키를 사용할 경우 `GOOGLE_MAPS_API_KEY`를 추가할 수 있습니다.
 신규 가입을 막으려면 `AUTH_SIGNUP_ENABLED=false`로 설정합니다.
+`PLAN_SHARE_ENCRYPTION_KEY`는 JWT 키와 별도로 설정하고 배포·재시작 사이에 동일하게 유지합니다. 생략하면 `JWT_SECRET_KEY`를 사용합니다.
 리버스 프록시 환경에서는 기본값인 `native`가 컨테이너의 신뢰 가능한 프록시 규칙으로
 전달 헤더를 처리한 뒤 로그인·회원가입 제한에 실제 클라이언트 주소를 사용합니다.
 

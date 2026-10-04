@@ -40,6 +40,9 @@ navitime:
 auth:
   signup-enabled: ${AUTH_SIGNUP_ENABLED:true}
 
+plan-share:
+  encryption-key: ${PLAN_SHARE_ENCRYPTION_KEY:${JWT_SECRET_KEY:}}
+
 route:
   estimate:
     cache-ttl-seconds: ${ROUTE_ESTIMATE_CACHE_TTL_SECONDS:600}

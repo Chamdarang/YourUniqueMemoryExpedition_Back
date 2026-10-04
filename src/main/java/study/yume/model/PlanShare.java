@@ -30,6 +30,12 @@ public class PlanShare extends BaseTimeEntity {
     @Column(name = "token_hash", nullable = false, length = 64, columnDefinition = "char(64)")
     private String tokenHash;
 
+    @Column(name = "token_ciphertext", length = 255)
+    private String tokenCiphertext;
+
     @Column(name = "revoked_at")
     private LocalDateTime revokedAt;
+
+    @Column(name = "expires_at")
+    private LocalDateTime expiresAt;
 }

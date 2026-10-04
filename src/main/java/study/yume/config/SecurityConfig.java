@@ -44,7 +44,7 @@ public class SecurityConfig {
                 .cors(Customizer.withDefaults())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/auth/login", "/api/auth/signup", "/actuator/health").permitAll()
+                        .requestMatchers("/api/auth/login", "/api/auth/signup", "/api/public/plans/**", "/actuator/health").permitAll()
                         .requestMatchers("/api/spots/test/renew/**").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 )
@@ -73,7 +73,7 @@ public class SecurityConfig {
                 .filter(origin -> !origin.isBlank())
                 .toList());
         cfg.setAllowedMethods(List.of("GET","POST","PUT","PATCH","DELETE","OPTIONS"));
-        cfg.setAllowedHeaders(List.of("Content-Type", "Authorization", RequestIdFilter.HEADER_NAME));
+        cfg.setAllowedHeaders(List.of("Content-Type", "Authorization", "X-Plan-Share-Token", RequestIdFilter.HEADER_NAME));
         cfg.setExposedHeaders(List.of(RequestIdFilter.HEADER_NAME));
         cfg.setAllowCredentials(false);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

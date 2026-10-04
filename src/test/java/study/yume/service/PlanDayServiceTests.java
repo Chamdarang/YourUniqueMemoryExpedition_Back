@@ -26,6 +26,79 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class PlanDayServiceTests {
+    @Test
+    void shiftsOnlyUntilFirstGapAndPreservesLastDay() {
+        Plan plan = new Plan();
+        plan.setId(30L);
+        plan.setPlanDays(5);
+        PlanDay source = day(99L, null, 1);
+        PlanDay second = day(2L, plan, 2);
+        PlanDay third = day(3L, plan, 3);
+        PlanDay fifth = day(5L, plan, 5);
+        prepareShift(source, plan, List.of(second, third, fifth));
+
+        service.swapPlanDay(1L, new study.yume.dto.planday.request.PlanDaySwapRequest(
+                99L, 30L, 2, study.yume.model.enums.SwapMode.SHIFT));
+
+        assertThat(source.getDayOrder()).isEqualTo(2);
+        assertThat(second.getDayOrder()).isEqualTo(3);
+        assertThat(third.getDayOrder()).isEqualTo(4);
+        assertThat(fifth.getDayOrder()).isEqualTo(5);
+    }
+
+    @Test
+    void usesVacatedSourceSlotWhenShiftingWithinFullPlan() {
+        Plan plan = new Plan();
+        plan.setId(30L);
+        plan.setPlanDays(3);
+        PlanDay first = day(1L, plan, 1);
+        PlanDay second = day(2L, plan, 2);
+        PlanDay source = day(3L, plan, 3);
+        prepareShift(source, plan, List.of(first, second, source));
+
+        service.swapPlanDay(1L, new study.yume.dto.planday.request.PlanDaySwapRequest(
+                3L, 30L, 1, study.yume.model.enums.SwapMode.SHIFT));
+
+        assertThat(source.getDayOrder()).isEqualTo(1);
+        assertThat(first.getDayOrder()).isEqualTo(2);
+        assertThat(second.getDayOrder()).isEqualTo(3);
+    }
+
+    @Test
+    void rejectsShiftWithoutRoomBeforeChangingAnyDay() {
+        Plan plan = new Plan();
+        plan.setId(30L);
+        plan.setPlanDays(2);
+        PlanDay source = day(99L, null, 1);
+        PlanDay first = day(1L, plan, 1);
+        PlanDay second = day(2L, plan, 2);
+        prepareShift(source, plan, List.of(first, second));
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.swapPlanDay(1L,
+                new study.yume.dto.planday.request.PlanDaySwapRequest(
+                        99L, 30L, 1, study.yume.model.enums.SwapMode.SHIFT)))
+                .isInstanceOf(IllegalArgumentException.class);
+
+        assertThat(first.getDayOrder()).isEqualTo(1);
+        assertThat(second.getDayOrder()).isEqualTo(2);
+        assertThat(source.getPlan()).isNull();
+        verify(planDayRepository, org.mockito.Mockito.never()).save(any());
+    }
+
+    private PlanDay day(Long id, Plan plan, int order) {
+        PlanDay day = new PlanDay();
+        day.setId(id);
+        day.setPlan(plan);
+        day.setDayOrder(order);
+        return day;
+    }
+
+    private void prepareShift(PlanDay source, Plan target, List<PlanDay> days) {
+        when(planDayRepository.findByUserIdAndId(1L, source.getId())).thenReturn(Optional.of(source));
+        when(planRepository.findByUserIdAndId(1L, target.getId())).thenReturn(Optional.of(target));
+        when(planDayRepository.findAllByUserIdAndPlanIdOrderByDayOrderAsc(1L, target.getId())).thenReturn(days);
+    }
+
     @Mock private PlanDayRepository planDayRepository;
     @Mock private PlanRepository planRepository;
     @Mock private DayScheduleRepository dayScheduleRepository;

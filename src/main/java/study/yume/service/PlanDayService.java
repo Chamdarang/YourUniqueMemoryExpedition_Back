@@ -196,6 +196,10 @@ public class PlanDayService {
         }
 
         List<PlanDay> existPlanDays = planDayRepository.findAllByUserIdAndPlanIdOrderByDayOrderAsc(userId,req.targetPlanId());
+        // Moving within the same plan frees the source slot before shifting.
+        existPlanDays = existPlanDays.stream()
+                .filter(day -> !day.getId().equals(sourceDay.getId()))
+                .toList();
         PlanDay conflictPlanDay = existPlanDays.stream()
                 .filter(d->d.getDayOrder().equals(req.targetDayOrder()))
                 .findFirst()
@@ -260,23 +264,25 @@ public class PlanDayService {
                         .toList();
 
 
-                boolean hasEmptySlot = false;
+                Integer emptySlot = null;
                 for (int i = targetDayOrder; i <= targetPlanDays; i++) {
                     if (!occupiedOrders.contains(i)) {
-                        hasEmptySlot = true;
+                        emptySlot = i;
                         break;
                     }
                 }
 
                 // 3. 빈 공간이 없다면(꽉 찼다면) 에러 발생
-                if (!hasEmptySlot) {
+                if (emptySlot == null) {
                     throw new IllegalArgumentException(
                             String.format("해당 구간 이후로 일정을 밀어낼 빈 공간이 없습니다. (최대 %d일)", targetPlanDays)
                     );
                 }
 
+                final int shiftEnd = emptySlot;
                 existPlanDays.stream()
-                        .filter(d->d.getDayOrder()>=targetDayOrder)
+                        .filter(d -> d.getDayOrder() >= targetDayOrder && d.getDayOrder() < shiftEnd)
+                        .sorted(java.util.Comparator.comparing(PlanDay::getDayOrder).reversed())
                         .forEach(d->{
                             d.setDayOrder(d.getDayOrder()+1);
                             planDayRepository.save(d);

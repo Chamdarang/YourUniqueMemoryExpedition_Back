@@ -19,6 +19,9 @@ public class SpotVisitHistory{
     private Long id;
     @Column(nullable = false)
     private Long userId;
+    // Keep the visit snapshot even if the originating schedule is deleted.
+    @Column(unique = true)
+    private Long scheduleId;
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "spot_user_id", foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT))
     private SpotUser spotUser;

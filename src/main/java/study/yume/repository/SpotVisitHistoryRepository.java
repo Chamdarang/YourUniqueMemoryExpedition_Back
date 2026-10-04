@@ -8,7 +8,7 @@ import study.yume.model.SpotVisitHistory;
 import study.yume.model.SpotUser;
 
 public interface SpotVisitHistoryRepository extends JpaRepository<SpotVisitHistory, Long> {
-    void deleteByUserIdAndSpotUserIdAndDayId(Long userId, Long spotUserId, Long dayId);
+    void deleteByUserIdAndScheduleId(Long userId, Long scheduleId);
 
     @Modifying
     @Query("UPDATE SpotVisitHistory history SET history.spotUser = :target " +

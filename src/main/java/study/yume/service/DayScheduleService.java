@@ -302,6 +302,9 @@ public class DayScheduleService {
         boolean newCheckedState = !schedule.getIsChecked();
         schedule.setIsChecked(newCheckedState);
         if (newCheckedState) schedule.setIsSkipped(false);
+        if (!newCheckedState) {
+            spotVisitHistoryRepository.deleteByUserIdAndScheduleId(userId, scheduleId);
+        }
 
         if (schedule.getSpotUser()!=null ){
             SpotUser spotUser=schedule.getSpotUser();
@@ -311,10 +314,15 @@ public class DayScheduleService {
 
                 SpotVisitHistory spotVisitHistory = new SpotVisitHistory();
                 spotVisitHistory.setUserId(userId);
+                spotVisitHistory.setScheduleId(scheduleId);
                 spotVisitHistory.setSpotUser(spotUser);
                 spotVisitHistory.setDayId(schedule.getPlanDay().getId());
                 spotVisitHistory.setDayNameSnapshot(schedule.getPlanDay().getDayName());
-                spotVisitHistory.setVisitedAt(LocalDate.now());
+                PlanDay day = schedule.getPlanDay();
+                LocalDate startDate = day.getPlan() == null ? null : day.getPlan().getPlanStartDate();
+                spotVisitHistory.setVisitedAt(startDate == null
+                        ? LocalDate.now()
+                        : startDate.plusDays(day.getDayOrder() - 1L));
 
                 if (schedule.getPlanDay().getPlan() != null) {
                     spotVisitHistory.setPlanId(schedule.getPlanDay().getPlan().getId());
@@ -322,12 +330,6 @@ public class DayScheduleService {
                 }
 
                 spotVisitHistoryRepository.save(spotVisitHistory);
-            }else{
-                spotVisitHistoryRepository.deleteByUserIdAndSpotUserIdAndDayId(
-                        userId, spotUser.getId(), schedule.getPlanDay().getId()
-                );
-
-                // 이 장소를 방문한 기록이 전무하게 되었을 경우에도 일단 '이 장소에 가본적은 있음'을 유지
             }
         }
     }
@@ -474,13 +476,7 @@ public class DayScheduleService {
         schedule.setIsSkipped(newSkippedState);
         if (newSkippedState && Boolean.TRUE.equals(schedule.getIsChecked())) {
             schedule.setIsChecked(false);
-            if (schedule.getSpotUser() != null) {
-                spotVisitHistoryRepository.deleteByUserIdAndSpotUserIdAndDayId(
-                        userId,
-                        schedule.getSpotUser().getId(),
-                        schedule.getPlanDay().getId()
-                );
-            }
+            spotVisitHistoryRepository.deleteByUserIdAndScheduleId(userId, scheduleId);
         }
     }
 

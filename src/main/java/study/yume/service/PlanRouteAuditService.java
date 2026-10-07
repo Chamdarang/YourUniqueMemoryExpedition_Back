@@ -12,7 +12,6 @@ import study.yume.model.PlanDay;
 import study.yume.model.enums.ScheduleMode;
 import study.yume.repository.DayScheduleRepository;
 import study.yume.repository.PlanDayRepository;
-import study.yume.repository.PlanRepository;
 
 import java.time.LocalTime;
 import java.util.ArrayList;
@@ -24,31 +23,31 @@ import java.util.Map;
 @Service
 public class PlanRouteAuditService {
 
-    private final PlanRepository planRepository;
     private final PlanDayRepository planDayRepository;
     private final DayScheduleRepository dayScheduleRepository;
+    private final PlanAccessService planAccessService;
     private final int maxRouteCalculationLegs;
 
     public PlanRouteAuditService(
-            PlanRepository planRepository,
             PlanDayRepository planDayRepository,
             DayScheduleRepository dayScheduleRepository,
+            PlanAccessService planAccessService,
             @Value("${route.estimate.plan-audit-max-legs:50}") int maxRouteCalculationLegs
     ) {
-        this.planRepository = planRepository;
         this.planDayRepository = planDayRepository;
         this.dayScheduleRepository = dayScheduleRepository;
+        this.planAccessService = planAccessService;
         this.maxRouteCalculationLegs = Math.max(1, maxRouteCalculationLegs);
     }
 
     public PlanRouteAuditResponse audit(Long userId, Long planId) {
-        Plan plan = planRepository.findByUserIdAndId(userId, planId)
-                .orElseThrow(() -> new EntityNotFoundException("여행 계획을 찾을 수 없습니다."));
+        Plan plan = planAccessService.requireEditor(userId, planId);
+        Long dataOwnerId = plan.getUserId();
         Map<Integer, PlanDay> daysByOrder = new HashMap<>();
-        planDayRepository.findAllByUserIdAndPlanIdOrderByDayOrderAsc(userId, planId)
+        planDayRepository.findAllByUserIdAndPlanIdOrderByDayOrderAsc(dataOwnerId, planId)
                 .forEach(day -> daysByOrder.put(day.getDayOrder(), day));
         Map<Long, List<DaySchedule>> schedulesByDay = dayScheduleRepository
-                .findAllByUserIdAndPlanDayPlanIdOrderByPlanDayDayOrderAscScheduleOrderAsc(userId, planId)
+                .findAllByUserIdAndPlanDayPlanIdOrderByPlanDayDayOrderAscScheduleOrderAsc(dataOwnerId, planId)
                 .stream()
                 .collect(java.util.stream.Collectors.groupingBy(
                         schedule -> schedule.getPlanDay().getId(),

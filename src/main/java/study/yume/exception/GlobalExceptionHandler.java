@@ -6,6 +6,7 @@ import org.slf4j.MDC;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -84,5 +85,25 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(HttpStatus.CONFLICT)
                 .body(ApiResponse.error(e.getMessage(), e.getUsedSchedules()));
+    }
+
+    @ExceptionHandler(ScheduleEditConflictException.class)
+    public ResponseEntity<ApiResponse<study.yume.dto.schedule.response.DayScheduleResponse>> handleScheduleEditConflict(
+            ScheduleEditConflictException e
+    ) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ApiResponse.error(e.getMessage(), e.getLatestSchedule()));
+    }
+
+    @ExceptionHandler(PlanEntityEditConflictException.class)
+    public ResponseEntity<ApiResponse<Object>> handlePlanEntityEditConflict(PlanEntityEditConflictException e) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ApiResponse.error(e.getMessage(), e.getLatestValue()));
+    }
+
+    @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+    public ResponseEntity<ApiResponse<Void>> handleOptimisticLockConflict(ObjectOptimisticLockingFailureException e) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ApiResponse.error("데이터가 동시에 변경되었습니다. 최신 내용을 확인해 주세요."));
     }
 }

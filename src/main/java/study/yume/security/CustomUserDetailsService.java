@@ -7,16 +7,22 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import study.yume.dto.auth.request.SignupRequest;
 import study.yume.model.User;
 import study.yume.model.enums.Role;
 import study.yume.repository.UserRepository;
+import study.yume.service.OnboardingSampleDataService;
+
+import java.time.LocalDate;
+import java.time.ZoneId;
 
 @Service
 @RequiredArgsConstructor
 public class CustomUserDetailsService implements UserDetailsService {
     private final UserRepository userRepository;
     private final @Lazy PasswordEncoder passwordEncoder;
+    private final OnboardingSampleDataService onboardingSampleDataService;
 
     @Override
     public UserDetails loadUserByUsername(String username)
@@ -26,6 +32,7 @@ public class CustomUserDetailsService implements UserDetailsService {
         return new CustomUserDetails(user);
     }
 
+    @Transactional
     public void register(SignupRequest req) {
         if (req == null || req.username() == null || req.password() == null) {
             throw new IllegalArgumentException("아이디와 비밀번호를 입력해 주세요.");
@@ -46,11 +53,16 @@ public class CustomUserDetailsService implements UserDetailsService {
 
         User user = User.builder()
                 .username(username)
+                .nickname(username)
                 .password(passwordEncoder.encode(password))
                 .role(Role.USER)
                 .build();
 
-        userRepository.save(user);
+        User savedUser = userRepository.save(user);
+        onboardingSampleDataService.createForUser(
+                savedUser.getId(),
+                LocalDate.now(ZoneId.of("Asia/Seoul"))
+        );
     }
 
 }

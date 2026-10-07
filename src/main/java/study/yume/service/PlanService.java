@@ -12,8 +12,10 @@ import study.yume.dto.plan.request.PlanUpdateRequest;
 import study.yume.dto.plan.response.PlanDetailResponse;
 import study.yume.dto.plan.response.PlanResponse;
 import study.yume.dto.planday.response.PlanDayResponse;
+import study.yume.exception.PlanEntityEditConflictException;
 import study.yume.model.Plan;
 import study.yume.repository.PlanRepository;
+import study.yume.repository.PlanDayRepository;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -24,7 +26,10 @@ import java.util.List;
 public class PlanService {
 
     private final PlanRepository planRepository;
+    private final PlanDayRepository planDayRepository;
     private final PlanDayService planDayService;
+    private final PlanAccessService planAccessService;
+    private final PlanLiveUpdateService planLiveUpdateService;
 
     public PlanResponse createPlan(Long userId, PlanCreateRequest req) {
         Plan plan = new Plan();
@@ -40,11 +45,12 @@ public class PlanService {
 
     @Transactional(readOnly = true)
     public PlanDetailResponse getPlanById(Long userId,Long planId) {
-        Plan plan = findByUserIdAndId(userId,planId);
+        Plan plan = planAccessService.requireEditor(userId, planId);
 
         List<PlanDayResponse> schedules = planDayService.getDaysByPlanId(userId, planId);
 
-        return PlanDetailResponse.toDto(plan,schedules);
+        String accessRole = plan.getUserId().equals(userId) ? "OWNER" : "EDITOR";
+        return PlanDetailResponse.toDto(plan, accessRole, schedules);
     }
 
 
@@ -63,7 +69,14 @@ public class PlanService {
     }
 
     public PlanResponse updatePlan(Long userId, Long planId, PlanUpdateRequest req) {
-        Plan plan = findByUserIdAndId(userId,planId);
+        Plan plan = planAccessService.requireEditor(userId, planId);
+
+        if (req.expectedVersion() == null) {
+            throw new IllegalArgumentException("계획 버전 정보가 없습니다. 최신 내용을 다시 불러와 주세요.");
+        }
+        if (!req.expectedVersion().equals(plan.getVersion())) {
+            throw new PlanEntityEditConflictException("여행 계획이 다른 사용자에 의해 변경되었습니다.", PlanResponse.toDto(plan));
+        }
 
         if(req.planName() !=null) plan.setPlanName(req.planName());
         if(req.planMemo() !=null) plan.setPlanMemo(req.planMemo());
@@ -71,9 +84,43 @@ public class PlanService {
         LocalDate newStart = req.planStartDate() != null ? req.planStartDate() : plan.getPlanStartDate();
         LocalDate newEnd = req.planEndDate() != null ? req.planEndDate() : plan.getPlanEndDate();
         Integer newDays = req.planDays() != null ? req.planDays() : plan.getPlanDays();
+        if (!plan.getUserId().equals(userId) && newDays != null) {
+            int lastAssignedDay = planDayRepository.findAllByUserIdAndPlanIdOrderByDayOrderAsc(plan.getUserId(), planId)
+                    .stream().mapToInt(assignedDay -> assignedDay.getDayOrder()).max().orElse(0);
+            if (newDays < lastAssignedDay) {
+                throw new IllegalArgumentException("일정이 등록된 범위보다 짧게 줄이려면 여행 소유자가 날짜를 먼저 정리해야 합니다.");
+            }
+        }
+        List<Long> detachDayIds = req.detachDayIds() == null ? List.of() : req.detachDayIds();
+        if (!detachDayIds.isEmpty()) {
+            if (newDays == null) {
+                throw new IllegalArgumentException("날짜를 분리하려면 여행 기간을 먼저 지정해야 합니다.");
+            }
+            if (!plan.getUserId().equals(userId)) {
+                throw new IllegalArgumentException("날짜 분리는 여행 소유자만 할 수 있습니다.");
+            }
+            List<study.yume.model.PlanDay> selectedDays = planDayRepository
+                    .findAllByUserIdAndPlanIdOrderByDayOrderAsc(plan.getUserId(), planId).stream()
+                    .filter(day -> detachDayIds.contains(day.getId()))
+                    .toList();
+            if (selectedDays.size() != detachDayIds.stream().distinct().count()
+                    || selectedDays.stream().anyMatch(day -> day.getDayOrder() <= newDays)) {
+                throw new IllegalArgumentException("여행 기간 범위를 벗어난 날짜만 분리할 수 있습니다.");
+            }
+            String planName = plan.getPlanName();
+            selectedDays.forEach(day -> {
+                String memo = day.getMemo() == null ? "" : day.getMemo();
+                day.setMemo(memo + (memo.isEmpty() ? "" : "\n") + "[" + planName + "에서 분리됨]");
+                day.setPlan(null);
+                day.setDayOrder(1);
+            });
+            planDayRepository.saveAll(selectedDays);
+        }
         updateAndValidateDates(plan, newStart, newEnd, newDays);
 
-        return PlanResponse.toDto(planRepository.save(plan));
+        Plan saved = planRepository.save(plan);
+        planLiveUpdateService.publishAfterCommit(planId, userId);
+        return PlanResponse.toDto(saved);
     }
 
     @Transactional(readOnly = true)
@@ -101,6 +148,7 @@ public class PlanService {
     public void deletePlanById(Long userId, Long planId) {
         Plan plan = findByUserIdAndId(userId,planId);
         planRepository.delete(plan);
+        planLiveUpdateService.closePlanAfterCommit(planId);
     }
 
     private Plan findByUserIdAndId(Long userId, Long planId) {

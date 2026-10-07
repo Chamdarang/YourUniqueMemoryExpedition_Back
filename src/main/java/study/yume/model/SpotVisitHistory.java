@@ -13,6 +13,10 @@ import java.time.LocalDateTime;
 @Getter
 @Setter
 @EntityListeners(AuditingEntityListener.class)
+@Table(uniqueConstraints = @UniqueConstraint(
+        name = "uq_visit_history_user_schedule",
+        columnNames = {"user_id", "schedule_id"}
+))
 public class SpotVisitHistory{
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -20,7 +24,7 @@ public class SpotVisitHistory{
     @Column(nullable = false)
     private Long userId;
     // Keep the visit snapshot even if the originating schedule is deleted.
-    @Column(unique = true)
+    @Column(name = "schedule_id")
     private Long scheduleId;
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "spot_user_id", foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT))

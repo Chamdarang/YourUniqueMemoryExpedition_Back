@@ -5,6 +5,7 @@ import java.time.LocalDateTime;
 public record PlanShareLinkResponse(
         String token,
         LocalDateTime createdAt,
-        LocalDateTime expiresAt
+        LocalDateTime expiresAt,
+        String accessMode
 ) {
 }

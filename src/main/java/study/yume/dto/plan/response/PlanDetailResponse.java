@@ -13,9 +13,11 @@ public record PlanDetailResponse(
         LocalDate planEndDate,
         Integer planDays,
         String planMemo,
+        Long version,
+        String accessRole,
         List<PlanDayResponse> days
 ) {
-    public static PlanDetailResponse toDto(Plan plan, List<PlanDayResponse> days) {
+    public static PlanDetailResponse toDto(Plan plan, String accessRole, List<PlanDayResponse> days) {
         return new PlanDetailResponse(
                 plan.getId(),
                 plan.getPlanName(),
@@ -23,6 +25,8 @@ public record PlanDetailResponse(
                 plan.getPlanEndDate(),
                 plan.getPlanDays(),
                 plan.getPlanMemo(),
+                plan.getVersion(),
+                accessRole,
                 days
         );
     }

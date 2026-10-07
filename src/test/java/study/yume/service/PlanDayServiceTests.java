@@ -30,6 +30,7 @@ class PlanDayServiceTests {
     void shiftsOnlyUntilFirstGapAndPreservesLastDay() {
         Plan plan = new Plan();
         plan.setId(30L);
+        plan.setUserId(1L);
         plan.setPlanDays(5);
         PlanDay source = day(99L, null, 1);
         PlanDay second = day(2L, plan, 2);
@@ -50,6 +51,7 @@ class PlanDayServiceTests {
     void usesVacatedSourceSlotWhenShiftingWithinFullPlan() {
         Plan plan = new Plan();
         plan.setId(30L);
+        plan.setUserId(1L);
         plan.setPlanDays(3);
         PlanDay first = day(1L, plan, 1);
         PlanDay second = day(2L, plan, 2);
@@ -68,6 +70,7 @@ class PlanDayServiceTests {
     void rejectsShiftWithoutRoomBeforeChangingAnyDay() {
         Plan plan = new Plan();
         plan.setId(30L);
+        plan.setUserId(1L);
         plan.setPlanDays(2);
         PlanDay source = day(99L, null, 1);
         PlanDay first = day(1L, plan, 1);
@@ -88,26 +91,29 @@ class PlanDayServiceTests {
     private PlanDay day(Long id, Plan plan, int order) {
         PlanDay day = new PlanDay();
         day.setId(id);
+        day.setUserId(1L);
         day.setPlan(plan);
         day.setDayOrder(order);
         return day;
     }
 
     private void prepareShift(PlanDay source, Plan target, List<PlanDay> days) {
-        when(planDayRepository.findByUserIdAndId(1L, source.getId())).thenReturn(Optional.of(source));
-        when(planRepository.findByUserIdAndId(1L, target.getId())).thenReturn(Optional.of(target));
+        when(planDayRepository.findById(source.getId())).thenReturn(Optional.of(source));
+        if (source.getPlan() != null) when(planAccessService.requireEditorOwnerId(1L, source.getPlan().getId())).thenReturn(1L);
+        when(planAccessService.requireEditor(1L, target.getId())).thenReturn(target);
         when(planDayRepository.findAllByUserIdAndPlanIdOrderByDayOrderAsc(1L, target.getId())).thenReturn(days);
     }
 
     @Mock private PlanDayRepository planDayRepository;
-    @Mock private PlanRepository planRepository;
     @Mock private DayScheduleRepository dayScheduleRepository;
+    @Mock private study.yume.repository.ScheduleVisitStatusRepository scheduleVisitStatusRepository;
+    @Mock private PlanAccessService planAccessService;
 
     private PlanDayService service;
 
     @BeforeEach
     void setUp() {
-        service = new PlanDayService(planDayRepository, planRepository, dayScheduleRepository);
+        service = new PlanDayService(planDayRepository, dayScheduleRepository, scheduleVisitStatusRepository, planAccessService);
     }
 
     @Test
@@ -135,9 +141,11 @@ class PlanDayServiceTests {
 
         Plan target = new Plan();
         target.setId(30L);
+        target.setUserId(1L);
         target.setPlanDays(3);
-        when(planDayRepository.findByUserIdAndId(1L, 20L)).thenReturn(Optional.of(source));
-        when(planRepository.findByUserIdAndId(1L, 30L)).thenReturn(Optional.of(target));
+        when(planDayRepository.findById(20L)).thenReturn(Optional.of(source));
+        when(planAccessService.requireEditorOwnerId(1L, 10L)).thenReturn(1L);
+        when(planAccessService.requireEditor(1L, 30L)).thenReturn(target);
         when(planDayRepository.existsByUserIdAndPlanIdAndDayOrder(1L, 30L, 2)).thenReturn(false);
         when(planDayRepository.save(any(PlanDay.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(dayScheduleRepository.findAllByUserIdAndPlanDayIdOrderByScheduleOrderAsc(1L, 20L)).thenReturn(List.of(original));
@@ -152,5 +160,29 @@ class PlanDayServiceTests {
         assertThat(copied.getSpotNameSnapshot()).isEqualTo("청수사");
         assertThat(copied.getIsChecked()).isFalse();
         assertThat(copied.getIsSkipped()).isFalse();
+    }
+
+    @Test
+    void searchesOnlyOwnedIndependentDaysUsingTrimmedTitleAndPreservesPaging() {
+        var pageable = org.springframework.data.domain.PageRequest.of(2, 9);
+        PlanDay found = day(12L, null, 1);
+        found.setDayName("교토 산책");
+        when(planDayRepository.findAllByUserIdAndPlanIsNullAndDayNameContainingIgnoreCase(7L, "교토", pageable))
+                .thenReturn(new org.springframework.data.domain.PageImpl<>(List.of(found), pageable, 19));
+        var result = service.getAllIndependentDay(7L, pageable, "  교토  ");
+        assertThat(result.getContent()).extracting(study.yume.dto.planday.response.PlanDayResponse::dayName).containsExactly("교토 산책");
+        assertThat(result.getTotalElements()).isEqualTo(19);
+        assertThat(result.getNumber()).isEqualTo(2);
+        verify(planDayRepository).findAllByUserIdAndPlanIsNullAndDayNameContainingIgnoreCase(7L, "교토", pageable);
+    }
+
+    @Test
+    void blankOrMissingKeywordKeepsTheUnfilteredList() {
+        var pageable = org.springframework.data.domain.PageRequest.of(0, 9);
+        when(planDayRepository.findAllByUserIdAndPlanIsNull(7L, pageable)).thenReturn(org.springframework.data.domain.Page.empty(pageable));
+        service.getAllIndependentDay(7L, pageable, null);
+        service.getAllIndependentDay(7L, pageable, "   ");
+        verify(planDayRepository, org.mockito.Mockito.times(2)).findAllByUserIdAndPlanIsNull(7L, pageable);
+        verify(planDayRepository, org.mockito.Mockito.never()).findAllByUserIdAndPlanIsNullAndDayNameContainingIgnoreCase(any(), any(), any());
     }
 }

@@ -19,6 +19,9 @@ public class PlanDay extends BaseTimeEntity{
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Version
+    private Long version;
     @Column(nullable = false)
     private Long userId;
     @ManyToOne(fetch = FetchType.LAZY)

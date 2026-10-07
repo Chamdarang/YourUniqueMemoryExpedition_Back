@@ -9,7 +9,8 @@ public record PlanDayResponse(
         String dayName,
         Integer dayOrder,
         String memo,
-        ScheduleMode scheduleMode
+        ScheduleMode scheduleMode,
+        Long version
 ) {
     public static PlanDayResponse toDto(PlanDay planDay) {
         return new PlanDayResponse(
@@ -17,7 +18,8 @@ public record PlanDayResponse(
                 planDay.getDayName(),
                 planDay.getDayOrder(),
                 planDay.getMemo(),
-                planDay.getScheduleMode()
+                planDay.getScheduleMode(),
+                planDay.getVersion()
         );
     }
 }

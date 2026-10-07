@@ -17,6 +17,10 @@ public class DaySchedule extends BaseTimeEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Version
+    @Column(nullable = false)
+    private Long version;
+
     @Column(nullable = false)
     private Long userId;
 

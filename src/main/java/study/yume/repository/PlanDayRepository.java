@@ -17,6 +17,7 @@ public interface PlanDayRepository extends JpaRepository<PlanDay, Long> {
     @EntityGraph(attributePaths = "plan")
     Optional<PlanDay> findOneByUserIdAndId(Long userId, Long id);
     Page<PlanDay> findAllByUserIdAndPlanIsNull(Long userId, Pageable pageable);
+    Page<PlanDay> findAllByUserIdAndPlanIsNullAndDayNameContainingIgnoreCase(Long userId, String keyword, Pageable pageable);
     List<PlanDay> findAllByUserIdAndPlanIdOrderByDayOrderAsc(Long userId,Long planId);
 
 }

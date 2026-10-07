@@ -8,6 +8,7 @@ import java.time.LocalTime;
 
 public record DayScheduleResponse(
         Long id,
+        Long version,
         Long dayId,
         int scheduleOrder,
         Long spotUserId,
@@ -29,15 +30,34 @@ public record DayScheduleResponse(
         String movingMemo
 ) {
     public static DayScheduleResponse toDto(DaySchedule schedule) {
+        return toDto(schedule, true);
+    }
+
+    public static DayScheduleResponse toDto(DaySchedule schedule, boolean includeOwnerPrivateData) {
+        return toDto(
+                schedule,
+                includeOwnerPrivateData,
+                Boolean.TRUE.equals(schedule.getIsChecked()),
+                Boolean.TRUE.equals(schedule.getIsSkipped())
+        );
+    }
+
+    public static DayScheduleResponse toDto(
+            DaySchedule schedule,
+            boolean includeOwnerPrivateData,
+            boolean isChecked,
+            boolean isSkipped
+    ) {
         return new DayScheduleResponse(
                 schedule.getId(),
+                schedule.getVersion(),
                 schedule.getPlanDay().getId(),
                 schedule.getScheduleOrder(),
-                schedule.getSpotUser() != null ? schedule.getSpotUser().getId() : null,
+                includeOwnerPrivateData && schedule.getSpotUser() != null ? schedule.getSpotUser().getId() : null,
                 schedule.getSpotNameSnapshot(),
                 schedule.getSpotTypeSnapshot(),
-                schedule.getIsChecked(),
-                Boolean.TRUE.equals(schedule.getIsSkipped()),
+                isChecked,
+                isSkipped,
                 schedule.getSpotLocationSnapshot() != null ? schedule.getSpotLocationSnapshot().getY() : null,
                 schedule.getSpotLocationSnapshot() != null ? schedule.getSpotLocationSnapshot().getX() : null,
                 schedule.getStartTime(),

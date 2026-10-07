@@ -10,7 +10,8 @@ public record PlanResponse(
         LocalDate planStartDate,
         LocalDate planEndDate,
         Integer planDays,
-        String planMemo
+        String planMemo,
+        Long version
 ) {
     public static PlanResponse toDto(Plan plan) {
         return new PlanResponse(
@@ -19,7 +20,8 @@ public record PlanResponse(
                 plan.getPlanStartDate(),
                 plan.getPlanEndDate(),
                 plan.getPlanDays(),
-                plan.getPlanMemo()
+                plan.getPlanMemo(),
+                plan.getVersion()
         );
     }
 }

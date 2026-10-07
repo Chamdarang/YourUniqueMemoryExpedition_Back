@@ -9,6 +9,8 @@ import java.time.LocalTime;
 import java.util.List;
 
 public record PublicPlanShareResponse(
+        Long planId,
+        String accessMode,
         String planName,
         LocalDate planStartDate,
         LocalDate planEndDate,

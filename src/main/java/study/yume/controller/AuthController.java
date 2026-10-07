@@ -17,6 +17,7 @@ import study.yume.dto.auth.response.LoginResponse;
 import study.yume.security.AuthRateLimitService;
 import study.yume.security.ClientAddressResolver;
 import study.yume.security.CustomUserDetailsService;
+import study.yume.repository.UserRepository;
 
 import java.util.Date;
 
@@ -30,6 +31,7 @@ public class AuthController {
     private final JwtUtil jwtUtil;
     private final AuthRateLimitService authRateLimitService;
     private final ClientAddressResolver clientAddressResolver;
+    private final UserRepository userRepository;
 
     @Value("${auth.signup-enabled:true}")
     private boolean signupEnabled;
@@ -53,7 +55,10 @@ public class AuthController {
         Date now = new Date();
         Date expiryDate = new Date(now.getTime() + 1000*60*60*24);
         String token = jwtUtil.generateToken(req.username(),expiryDate);
-        LoginResponse response = new LoginResponse(token, req.username(),expiryDate);
+        String nickname = userRepository.findByUsername(req.username())
+                .map(user -> user.getNickname() == null ? user.getUsername() : user.getNickname())
+                .orElse(req.username());
+        LoginResponse response = new LoginResponse(token, req.username(), nickname, expiryDate);
 
         return ResponseEntity.ok(ApiResponse.success(response));
     }

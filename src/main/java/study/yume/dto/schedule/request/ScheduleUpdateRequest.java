@@ -20,6 +20,7 @@ public record ScheduleUpdateRequest(
         Integer extraMovingDuration,
         Transportation transportation,
         String memo,
-        String movingMemo
+        String movingMemo,
+        Long expectedVersion
 ) {
 }

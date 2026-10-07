@@ -19,10 +19,14 @@ import study.yume.model.DaySchedule;
 import study.yume.model.enums.SwapMode;
 import study.yume.model.enums.ScheduleMode;
 import study.yume.repository.PlanDayRepository;
-import study.yume.repository.PlanRepository;
 import study.yume.repository.DayScheduleRepository;
+import study.yume.repository.ScheduleVisitStatusRepository;
+import study.yume.model.ScheduleVisitStatus;
+import study.yume.exception.PlanEntityEditConflictException;
 
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -30,8 +34,10 @@ import java.util.List;
 public class PlanDayService {
 
     private final PlanDayRepository planDayRepository;
-    private final PlanRepository planRepository;
     private final DayScheduleRepository dayScheduleRepository;
+    private final ScheduleVisitStatusRepository scheduleVisitStatusRepository;
+    private final PlanAccessService planAccessService;
+    private final PlanLiveUpdateService planLiveUpdateService;
 
     public PlanDayResponse createIndependentDay(Long userId, PlanDayIndependentCreateRequest req){
         PlanDay planDay = new PlanDay();
@@ -60,31 +66,39 @@ public class PlanDayService {
         }
 
 
-        boolean isDuplicate = planDayRepository.existsByUserIdAndPlanIdAndDayOrder(userId, planId, req.dayOrder());
+        boolean isDuplicate = planDayRepository.existsByUserIdAndPlanIdAndDayOrder(plan.getUserId(), planId, req.dayOrder());
         if (isDuplicate) {
             throw new IllegalArgumentException(req.dayOrder() + "일차 일정은 이미 존재합니다.");
         }
 
         PlanDay planDay = new PlanDay();
-        planDay.setUserId(userId);
+        planDay.setUserId(plan.getUserId());
         planDay.setDayName(req.dayName());
         planDay.setDayOrder(req.dayOrder());
         planDay.setPlan(plan);
         planDay.setScheduleMode(req.scheduleMode() == null ? ScheduleMode.DETAILED : req.scheduleMode());
 
-        return PlanDayResponse.toDto(planDayRepository.save(planDay));
+        PlanDay saved = planDayRepository.save(planDay);
+        planLiveUpdateService.publishAfterCommit(planId, userId);
+        return PlanDayResponse.toDto(saved);
     }
 
     @Transactional(readOnly = true)
     public PlanDayDetailResponse getPlanDayDetail(Long userId, Long dayId) {
-        return PlanDayDetailResponse.toDto(findDayByUserIdAndId(userId,dayId));
+        PlanDay day = findDayByUserIdAndId(userId, dayId);
+        List<Long> scheduleIds = day.getSchedules().stream().map(DaySchedule::getId).toList();
+        Map<Long, ScheduleVisitStatus> statusByScheduleId = scheduleIds.isEmpty()
+                ? Map.of()
+                : scheduleVisitStatusRepository.findAllByUserIdAndScheduleIdIn(userId, scheduleIds).stream()
+                        .collect(Collectors.toMap(ScheduleVisitStatus::getScheduleId, status -> status));
+        return PlanDayDetailResponse.toDto(day, day.getUserId().equals(userId), statusByScheduleId);
     }
 
     @Transactional(readOnly = true)
     public List<PlanDayResponse> getPlanDaysByPlanId(Long userId, Long planId) {
-        findPlanByUserIdAndId(userId,planId);
+        Plan plan = findPlanByUserIdAndId(userId,planId);
 
-        return planDayRepository.findAllByUserIdAndPlanIdOrderByDayOrderAsc(userId, planId).stream()
+        return planDayRepository.findAllByUserIdAndPlanIdOrderByDayOrderAsc(plan.getUserId(), planId).stream()
                 .map(PlanDayResponse::toDto)
                 .toList();
     }
@@ -92,15 +106,26 @@ public class PlanDayService {
 
     public PlanDayResponse updatePlanDay(Long userId,Long dayId, PlanDayUpdateRequest req){
         PlanDay planDay = findDayByUserIdAndId(userId,dayId);
+        if (req.expectedVersion() == null) {
+            throw new IllegalArgumentException("하루 일정 버전 정보가 없습니다. 최신 내용을 다시 불러와 주세요.");
+        }
+        if (!req.expectedVersion().equals(planDay.getVersion())) {
+            throw new PlanEntityEditConflictException("하루 일정이 다른 사용자에 의해 변경되었습니다.", PlanDayResponse.toDto(planDay));
+        }
         if(req.dayName()!=null) planDay.setDayName(req.dayName());
         if(req.memo()!=null) planDay.setMemo(req.memo());
         if(req.scheduleMode()!=null) planDay.setScheduleMode(req.scheduleMode());
-        return PlanDayResponse.toDto(planDayRepository.save(planDay));
+        PlanDay saved = planDayRepository.save(planDay);
+        if (saved.getPlan() != null) planLiveUpdateService.publishAfterCommit(saved.getPlan().getId(), userId);
+        return PlanDayResponse.toDto(saved);
     }
 
     public PlanDayResponse detachPlanDay(Long userId, Long dayId) {
         PlanDay planDay = findDayByUserIdAndId(userId, dayId);
+        if (planDay.getPlan() == null) throw new IllegalArgumentException("독립 일정은 여행에서 분리할 수 없습니다.");
+        planAccessService.requireOwner(userId, planDay.getPlan().getId());
 
+        Long planId = planDay.getPlan().getId();
         String planName = planDay.getPlan().getPlanName();
         String currentMemo = (planDay.getMemo() != null) ? planDay.getMemo() : "";
 
@@ -110,29 +135,33 @@ public class PlanDayService {
         planDay.setPlan(null);
         planDay.setDayOrder(1);
 
-        return PlanDayResponse.toDto(planDayRepository.save(planDay));
+        PlanDay saved = planDayRepository.save(planDay);
+        planLiveUpdateService.publishAfterCommit(planId, userId);
+        return PlanDayResponse.toDto(saved);
     }
 
     @Transactional
     public PlanDayResponse copyPlanDay(Long userId, Long sourceDayId, PlanDayCopyRequest req) {
         PlanDay source = findDayByUserIdAndId(userId, sourceDayId);
         Plan targetPlan = null;
+        Long targetOwnerId = userId;
         int targetOrder = 1;
 
         if (req.targetPlanId() != null) {
             targetPlan = findPlanByUserIdAndId(userId, req.targetPlanId());
+            targetOwnerId = targetPlan.getUserId();
             if (req.targetDayOrder() == null || req.targetDayOrder() < 1 || targetPlan.getPlanDays() == null
                     || req.targetDayOrder() > targetPlan.getPlanDays()) {
                 throw new IllegalArgumentException("복제할 일차가 여행 기간을 벗어났습니다.");
             }
-            if (planDayRepository.existsByUserIdAndPlanIdAndDayOrder(userId, targetPlan.getId(), req.targetDayOrder())) {
+            if (planDayRepository.existsByUserIdAndPlanIdAndDayOrder(targetOwnerId, targetPlan.getId(), req.targetDayOrder())) {
                 throw new IllegalArgumentException(req.targetDayOrder() + "일차 일정은 이미 존재합니다.");
             }
             targetOrder = req.targetDayOrder();
         }
 
         PlanDay copy = new PlanDay();
-        copy.setUserId(userId);
+        copy.setUserId(targetOwnerId);
         copy.setPlan(targetPlan);
         copy.setDayOrder(targetOrder);
         copy.setDayName(req.dayName() == null || req.dayName().isBlank()
@@ -143,13 +172,13 @@ public class PlanDayService {
         copy = planDayRepository.save(copy);
 
         List<DaySchedule> sourceSchedules = dayScheduleRepository
-                .findAllByUserIdAndPlanDayIdOrderByScheduleOrderAsc(userId, sourceDayId);
+                .findAllByUserIdAndPlanDayIdOrderByScheduleOrderAsc(source.getUserId(), sourceDayId);
         for (DaySchedule original : sourceSchedules) {
             DaySchedule cloned = new DaySchedule();
-            cloned.setUserId(userId);
+            cloned.setUserId(targetOwnerId);
             cloned.setPlanDay(copy);
             cloned.setScheduleOrder(original.getScheduleOrder());
-            cloned.setSpotUser(original.getSpotUser());
+            cloned.setSpotUser(source.getUserId().equals(targetOwnerId) ? original.getSpotUser() : null);
             cloned.setSpotNameSnapshot(original.getSpotNameSnapshot());
             cloned.setSpotLocationSnapshot(original.getSpotLocationSnapshot() == null
                     ? null
@@ -170,13 +199,18 @@ public class PlanDayService {
             dayScheduleRepository.save(cloned);
         }
 
+        if (targetPlan != null) planLiveUpdateService.publishAfterCommit(targetPlan.getId(), userId);
         return PlanDayResponse.toDto(copy);
     }
 
     public void swapPlanDay(Long userId, PlanDaySwapRequest req){
         PlanDay sourceDay = findDayByUserIdAndId(userId,req.sourceDayId());
+        Long sourcePlanId = sourceDay.getPlan() == null ? null : sourceDay.getPlan().getId();
 
         Plan targetPlan = findPlanByUserIdAndId(userId,req.targetPlanId());
+        if (!sourceDay.getUserId().equals(targetPlan.getUserId())) {
+            throw new IllegalArgumentException("공유 계획의 날짜는 같은 계획 안에서만 이동할 수 있습니다.");
+        }
 
         if (req.targetDayOrder() < 1) {
             throw new IllegalArgumentException("일정 순서는 1보다 작을 수 없습니다.");
@@ -195,7 +229,7 @@ public class PlanDayService {
             }
         }
 
-        List<PlanDay> existPlanDays = planDayRepository.findAllByUserIdAndPlanIdOrderByDayOrderAsc(userId,req.targetPlanId());
+        List<PlanDay> existPlanDays = planDayRepository.findAllByUserIdAndPlanIdOrderByDayOrderAsc(targetPlan.getUserId(),req.targetPlanId());
         // Moving within the same plan frees the source slot before shifting.
         existPlanDays = existPlanDays.stream()
                 .filter(day -> !day.getId().equals(sourceDay.getId()))
@@ -206,30 +240,43 @@ public class PlanDayService {
                 .orElse(null);
 
         if(conflictPlanDay!=null&& !conflictPlanDay.getId().equals(sourceDay.getId())) {
+            if (req.swapMode() == SwapMode.INDEPENDENT) {
+                planAccessService.requireOwner(userId, targetPlan.getId());
+            }
             handleConflict(conflictPlanDay,req.swapMode(),existPlanDays,req.targetDayOrder(),targetPlan.getPlanDays(),sourceDay.getDayOrder());
         }
 
         sourceDay.setPlan(targetPlan);
         sourceDay.setDayOrder(req.targetDayOrder());
         planDayRepository.save(sourceDay);
+        if (sourcePlanId != null && !sourcePlanId.equals(targetPlan.getId())) {
+            planLiveUpdateService.publishAfterCommit(sourcePlanId, userId);
+        }
+        planLiveUpdateService.publishAfterCommit(targetPlan.getId(), userId);
     }
 
     public void deletePlanDay(Long userId,Long dayId){
         PlanDay planDay = findDayByUserIdAndId(userId,dayId);
+        Long planId = planDay.getPlan() == null ? null : planDay.getPlan().getId();
         planDayRepository.delete(planDay);
+        planLiveUpdateService.publishAfterCommit(planId, userId);
     }
 
     @Transactional(readOnly = true)
     public List<PlanDayResponse> getDaysByPlanId(Long userId, Long planId){
-        return planDayRepository.findAllByUserIdAndPlanIdOrderByDayOrderAsc(userId, planId).stream()
+        Plan plan = findPlanByUserIdAndId(userId, planId);
+        return planDayRepository.findAllByUserIdAndPlanIdOrderByDayOrderAsc(plan.getUserId(), planId).stream()
                 .map(PlanDayResponse::toDto)
                 .toList();
     }
 
     @Transactional(readOnly = true)
-    public Page<PlanDayResponse> getAllIndependentDay(Long userId, Pageable pageable){
-        return planDayRepository.findAllByUserIdAndPlanIsNull(userId,pageable)
-                .map(PlanDayResponse::toDto);
+    public Page<PlanDayResponse> getAllIndependentDay(Long userId, Pageable pageable, String keyword){
+        String query = keyword == null ? "" : keyword.strip();
+        Page<PlanDay> days = query.isEmpty()
+                ? planDayRepository.findAllByUserIdAndPlanIsNull(userId, pageable)
+                : planDayRepository.findAllByUserIdAndPlanIsNullAndDayNameContainingIgnoreCase(userId, query, pageable);
+        return days.map(PlanDayResponse::toDto);
     }
 
     /**
@@ -292,12 +339,18 @@ public class PlanDayService {
     }
 
     private PlanDay findDayByUserIdAndId(Long userId, Long dayId) {
-        return planDayRepository.findByUserIdAndId(userId,dayId)
-                .orElseThrow(()->new EntityNotFoundException("일정을 찾을 수 없습니다."));
+        PlanDay day = planDayRepository.findById(dayId)
+                .orElseThrow(() -> new EntityNotFoundException("일정을 찾을 수 없습니다."));
+        if (day.getPlan() == null) {
+            if (!day.getUserId().equals(userId)) throw new EntityNotFoundException("일정을 찾을 수 없습니다.");
+            return day;
+        }
+        Long ownerId = planAccessService.requireEditorOwnerId(userId, day.getPlan().getId());
+        if (!day.getUserId().equals(ownerId)) throw new EntityNotFoundException("일정을 찾을 수 없습니다.");
+        return day;
     }
 
     private Plan findPlanByUserIdAndId(Long userId, Long planId) {
-        return planRepository.findByUserIdAndId(userId, planId)
-                .orElseThrow(() -> new EntityNotFoundException("여행 계획을 찾을 수 없습니다."));
+        return planAccessService.requireEditor(userId, planId);
     }
 }

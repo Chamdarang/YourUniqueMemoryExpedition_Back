@@ -38,4 +38,7 @@ public class PlanShare extends BaseTimeEntity {
 
     @Column(name = "expires_at")
     private LocalDateTime expiresAt;
+
+    @Column(name = "access_mode", nullable = false, length = 20)
+    private String accessMode = "VIEW";
 }

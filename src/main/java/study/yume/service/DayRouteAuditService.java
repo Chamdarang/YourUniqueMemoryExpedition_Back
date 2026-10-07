@@ -30,12 +30,21 @@ public class DayRouteAuditService {
     private final PlanDayRepository planDayRepository;
     private final DayScheduleRepository dayScheduleRepository;
     private final RouteEstimateService routeEstimateService;
+    private final PlanAccessService planAccessService;
 
     public DayRouteAuditResponse audit(Long userId, Long dayId) {
-        PlanDay day = planDayRepository.findOneByUserIdAndId(userId, dayId)
+        PlanDay day = planDayRepository.findById(dayId)
                 .orElseThrow(() -> new EntityNotFoundException("해당 하루 일정을 찾을 수 없습니다."));
+        Long dataOwnerId;
+        if (day.getPlan() == null) {
+            if (!day.getUserId().equals(userId)) throw new EntityNotFoundException("해당 하루 일정을 찾을 수 없습니다.");
+            dataOwnerId = userId;
+        } else {
+            dataOwnerId = planAccessService.requireEditorOwnerId(userId, day.getPlan().getId());
+            if (!day.getUserId().equals(dataOwnerId)) throw new EntityNotFoundException("해당 하루 일정을 찾을 수 없습니다.");
+        }
         List<DaySchedule> schedules = dayScheduleRepository
-                .findAllByUserIdAndPlanDayIdOrderByScheduleOrderAsc(userId, dayId);
+                .findAllByUserIdAndPlanDayIdOrderByScheduleOrderAsc(dataOwnerId, dayId);
         if (schedules.size() > 101) {
             throw new IllegalArgumentException("하루 전체 경로는 한 번에 최대 100개 구간까지 점검할 수 있습니다.");
         }

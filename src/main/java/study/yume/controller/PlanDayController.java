@@ -45,8 +45,9 @@ public class PlanDayController {
     @GetMapping("/independent")
     public ResponseEntity<ApiResponse<Page<PlanDayResponse>>> getAllIndependentDay(
             @AuthenticationPrincipal CustomUserDetails user,
-            @PageableDefault(sort = "createdAt",direction = Sort.Direction.DESC) Pageable pageable){
-        return ResponseEntity.ok(ApiResponse.success(planDayService.getAllIndependentDay(user.getId(),pageable)));
+            @PageableDefault(sort = "createdAt",direction = Sort.Direction.DESC) Pageable pageable,
+            @RequestParam(required = false) String keyword){
+        return ResponseEntity.ok(ApiResponse.success(planDayService.getAllIndependentDay(user.getId(),pageable,keyword)));
     }
 
     @GetMapping("/{dayId}")

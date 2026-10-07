@@ -10,6 +10,8 @@ import study.yume.model.SpotUser;
 public interface SpotVisitHistoryRepository extends JpaRepository<SpotVisitHistory, Long> {
     void deleteByUserIdAndScheduleId(Long userId, Long scheduleId);
 
+    boolean existsByUserIdAndScheduleId(Long userId, Long scheduleId);
+
     @Modifying
     @Query("UPDATE SpotVisitHistory history SET history.spotUser = :target " +
             "WHERE history.userId = :userId AND history.spotUser.id = :sourceId")

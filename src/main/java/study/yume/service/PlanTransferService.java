@@ -13,11 +13,13 @@ import study.yume.model.DaySchedule;
 import study.yume.model.Plan;
 import study.yume.model.PlanDay;
 import study.yume.model.SpotUser;
+import study.yume.model.ScheduleVisitStatus;
 import study.yume.model.enums.ScheduleMode;
 import study.yume.repository.DayScheduleRepository;
 import study.yume.repository.PlanDayRepository;
 import study.yume.repository.PlanRepository;
 import study.yume.repository.SpotUserRepository;
+import study.yume.repository.ScheduleVisitStatusRepository;
 
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
@@ -37,28 +39,48 @@ public class PlanTransferService {
     private final PlanDayRepository planDayRepository;
     private final DayScheduleRepository dayScheduleRepository;
     private final SpotUserRepository spotUserRepository;
+    private final ScheduleVisitStatusRepository scheduleVisitStatusRepository;
+    private final PlanAccessService planAccessService;
     private final GeometryFactory geometryFactory =
             new GeometryFactory(new PrecisionModel(), 4326);
 
     @Transactional(readOnly = true)
     public PlanTransferDto exportPlan(Long userId, Long planId) {
-        Plan plan = planRepository.findByUserIdAndId(userId, planId)
-                .orElseThrow(() -> new EntityNotFoundException("여행 계획을 찾을 수 없습니다."));
+        Plan plan = planAccessService.requireEditor(userId, planId);
+        Long dataOwnerId = plan.getUserId();
 
         List<PlanTransferDto.Day> days = planDayRepository
-                .findAllByUserIdAndPlanIdOrderByDayOrderAsc(userId, planId)
+                .findAllByUserIdAndPlanIdOrderByDayOrderAsc(dataOwnerId, planId)
                 .stream()
-                .map(day -> new PlanTransferDto.Day(
-                        day.getDayName(),
-                        day.getDayOrder(),
-                        day.getMemo(),
-                        day.getScheduleMode(),
-                        dayScheduleRepository
-                                .findAllByUserIdAndPlanDayIdOrderByScheduleOrderAsc(userId, day.getId())
-                                .stream()
-                                .map(this::toTransferSchedule)
-                                .toList()
-                ))
+                .map(day -> {
+                    List<DaySchedule> schedules = dayScheduleRepository
+                            .findAllByUserIdAndPlanDayIdOrderByScheduleOrderAsc(dataOwnerId, day.getId());
+                    List<Long> scheduleIds = schedules.stream().map(DaySchedule::getId).toList();
+                    List<ScheduleVisitStatus> userStatuses = scheduleIds.isEmpty() ? List.of() : scheduleVisitStatusRepository
+                            .findAllByUserIdAndScheduleIdIn(userId, scheduleIds);
+                    Set<Long> checkedIds = userStatuses.stream()
+                            .filter(ScheduleVisitStatus::isChecked)
+                            .map(ScheduleVisitStatus::getScheduleId)
+                            .collect(java.util.stream.Collectors.toSet());
+                    Set<Long> skippedIds = userStatuses.stream()
+                            .filter(ScheduleVisitStatus::isSkipped)
+                            .map(ScheduleVisitStatus::getScheduleId)
+                            .collect(java.util.stream.Collectors.toSet());
+                    return new PlanTransferDto.Day(
+                            day.getDayName(),
+                            day.getDayOrder(),
+                            day.getMemo(),
+                            day.getScheduleMode(),
+                            schedules.stream()
+                                    .map(schedule -> toTransferSchedule(
+                                            schedule,
+                                            userId.equals(dataOwnerId),
+                                            checkedIds.contains(schedule.getId()),
+                                            skippedIds.contains(schedule.getId())
+                                    ))
+                                    .toList()
+                    );
+                })
                 .toList();
 
         return new PlanTransferDto(
@@ -120,23 +142,36 @@ public class PlanTransferService {
                         .toList();
 
             for (int index = 0; index < schedules.size(); index++) {
-                dayScheduleRepository.save(toEntity(userId, day, schedules.get(index), index));
+                DaySchedule importedSchedule = dayScheduleRepository.save(toEntity(userId, day, schedules.get(index), index));
+                if (Boolean.TRUE.equals(schedules.get(index).isChecked()) || Boolean.TRUE.equals(schedules.get(index).isSkipped())) {
+                    ScheduleVisitStatus status = new ScheduleVisitStatus();
+                    status.setScheduleId(importedSchedule.getId());
+                    status.setUserId(userId);
+                    status.setChecked(Boolean.TRUE.equals(schedules.get(index).isChecked()));
+                    status.setSkipped(Boolean.TRUE.equals(schedules.get(index).isSkipped()));
+                    scheduleVisitStatusRepository.save(status);
+                }
             }
         }
 
         return PlanResponse.toDto(plan);
     }
 
-    private PlanTransferDto.Schedule toTransferSchedule(DaySchedule schedule) {
+    private PlanTransferDto.Schedule toTransferSchedule(
+            DaySchedule schedule,
+            boolean includeOwnerPrivateData,
+            boolean isChecked,
+            boolean isSkipped
+    ) {
         return new PlanTransferDto.Schedule(
                 schedule.getScheduleOrder(),
-                schedule.getSpotUser() == null ? null : schedule.getSpotUser().getId(),
+                !includeOwnerPrivateData || schedule.getSpotUser() == null ? null : schedule.getSpotUser().getId(),
                 schedule.getSpotNameSnapshot(),
                 schedule.getSpotTypeSnapshot(),
                 schedule.getSpotLocationSnapshot() == null ? null : schedule.getSpotLocationSnapshot().getY(),
                 schedule.getSpotLocationSnapshot() == null ? null : schedule.getSpotLocationSnapshot().getX(),
-                schedule.getIsChecked(),
-                schedule.getIsSkipped(),
+                isChecked,
+                isSkipped,
                 schedule.getStartTime(),
                 schedule.isFixedStartTime(),
                 schedule.getDuration(),
@@ -177,8 +212,8 @@ public class PlanTransferService {
         schedule.setSpotTypeSnapshot(imported.spotType() != null
                 ? imported.spotType()
                 : linkedSpot == null ? null : linkedSpot.getSpotType());
-        schedule.setIsChecked(Boolean.TRUE.equals(imported.isChecked()));
-        schedule.setIsSkipped(Boolean.TRUE.equals(imported.isSkipped()));
+        schedule.setIsChecked(false);
+        schedule.setIsSkipped(false);
         schedule.setStartTime(imported.startTime());
         schedule.setFixedStartTime(Boolean.TRUE.equals(imported.fixedStartTime()));
         schedule.setDuration(imported.duration());

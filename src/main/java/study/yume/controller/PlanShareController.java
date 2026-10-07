@@ -3,6 +3,7 @@ package study.yume.controller;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -12,8 +13,11 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import study.yume.dto.ApiResponse;
 import study.yume.dto.planshare.request.CreatePlanShareRequest;
+import study.yume.dto.planshare.request.AcceptPlanShareRequest;
+import study.yume.dto.planshare.response.AcceptPlanShareResponse;
 import study.yume.dto.planshare.response.PlanShareLinkResponse;
 import study.yume.dto.planshare.response.PlanShareStatusResponse;
 import study.yume.dto.planshare.response.PublicPlanShareResponse;
@@ -46,8 +50,19 @@ public class PlanShareController {
         return ResponseEntity.ok()
                 .cacheControl(CacheControl.noStore())
                 .body(ApiResponse.success(planShareService.createOrRotate(
-                        user.getId(), planId, request == null ? null : request.expiresInDays()
+                        user.getId(), planId, request == null ? null : request.expiresInDays(),
+                        request == null || request.accessMode() == null ? "VIEW" : request.accessMode()
                 )));
+    }
+
+    @PostMapping("/api/plans/share/accept")
+    public ResponseEntity<ApiResponse<AcceptPlanShareResponse>> acceptEditShare(
+            @AuthenticationPrincipal CustomUserDetails user,
+            @RequestBody AcceptPlanShareRequest request
+    ) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(ApiResponse.success(
+                new AcceptPlanShareResponse(planShareService.acceptEditLink(user.getId(), request.token()))
+        ));
     }
 
     @DeleteMapping("/api/plans/{planId}/share")
@@ -73,5 +88,15 @@ public class PlanShareController {
                 .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND)
                         .cacheControl(CacheControl.noStore())
                         .body(ApiResponse.<PublicPlanShareResponse>error("공유 링크가 만료되었거나 더 이상 사용할 수 없습니다.")));
+    }
+
+    @GetMapping(value = "/api/public/plans/share/events", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public ResponseEntity<SseEmitter> subscribePublicPlan(
+            @RequestHeader("X-Plan-Share-Token") String token
+    ) {
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.noCache())
+                .header("X-Accel-Buffering", "no")
+                .body(planShareService.subscribePublicPlan(token));
     }
 }

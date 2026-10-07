@@ -17,16 +17,18 @@ import study.yume.dto.schedule.response.DayScheduleResponse;
 import study.yume.dto.schedule.response.UnlinkedSpotGroupResponse;
 import study.yume.dto.schedule.response.ScheduleTransferResponse;
 import study.yume.exception.UsedScheduleProjection;
+import study.yume.exception.ScheduleEditConflictException;
 import study.yume.model.DaySchedule;
 import study.yume.model.PlanDay;
 import study.yume.model.SpotUser;
 import study.yume.model.SpotVisitHistory;
+import study.yume.model.ScheduleVisitStatus;
 import study.yume.model.enums.ScheduleMode;
 import study.yume.repository.PlanDayRepository;
 import study.yume.repository.DayScheduleRepository;
 import study.yume.repository.SpotUserRepository;
 import study.yume.repository.SpotVisitHistoryRepository;
-import study.yume.repository.PlanRepository;
+import study.yume.repository.ScheduleVisitStatusRepository;
 
 import java.time.Duration;
 import java.time.LocalDate;
@@ -48,16 +50,19 @@ public class DayScheduleService {
     private final PlanDayRepository plandayRepository;
     private final SpotUserRepository spotUserRepository;
     private final SpotVisitHistoryRepository spotVisitHistoryRepository;
-    private final PlanRepository planRepository;
+    private final ScheduleVisitStatusRepository scheduleVisitStatusRepository;
+    private final PlanAccessService planAccessService;
+    private final PlanLiveUpdateService planLiveUpdateService;
     private final GeometryFactory geometryFactory = new GeometryFactory(new PrecisionModel(), 4326);
 
     @Transactional(readOnly = true)
     public List<DayScheduleResponse> getSchedulesByDayId(Long userId, Long dayId) {
-        findDayByUserIdAndId(userId, dayId);
+        PlanDay day = findDayByUserIdAndId(userId, dayId);
 
-        return dayScheduleRepository.findAllByUserIdAndPlanDayIdOrderByScheduleOrderAsc(userId,dayId).stream()
-                .map(DayScheduleResponse::toDto)
-                .toList();
+        return toScheduleResponses(
+                dayScheduleRepository.findAllByUserIdAndPlanDayIdOrderByScheduleOrderAsc(day.getUserId(), dayId),
+                userId
+        );
     }
 
 //    public List<DayScheduleResponse> syncSchedules(Long userId, Long dayId, ScheduleSyncRequest req) {
@@ -97,15 +102,16 @@ public class DayScheduleService {
 //    }
 
     public List<DayScheduleResponse> createSchedule(Long userId, Long dayId, ScheduleCreateRequest req) {
-        List<DaySchedule> schedules = dayScheduleRepository.findAllByUserIdAndPlanDayIdOrderByScheduleOrderAsc(userId, dayId);
+        PlanDay planDay = findDayByUserIdAndId(userId, dayId);
+        Long dataOwnerId = planDay.getUserId();
+        List<DaySchedule> schedules = dayScheduleRepository.findAllByUserIdAndPlanDayIdOrderByScheduleOrderAsc(dataOwnerId, dayId);
 
         if (req.scheduleOrder() < 0 || req.scheduleOrder() > schedules.size()) {
             throw new IllegalArgumentException("일정을 추가할 위치가 올바르지 않습니다.");
         }
 
-        PlanDay planDay = findDayByUserIdAndId(userId, dayId);
         DaySchedule daySchedule = new DaySchedule();
-        daySchedule.setUserId(userId);
+        daySchedule.setUserId(dataOwnerId);
         daySchedule.setPlanDay(planDay);
         daySchedule.setScheduleOrder(req.scheduleOrder());
         daySchedule.setStartTime(req.startTime() != null
@@ -114,18 +120,14 @@ public class DayScheduleService {
         daySchedule.setFixedStartTime(req.startTime() != null);
         daySchedule.setDuration(60);
         daySchedule.setMemo(req.memo());
+        Long personalSpotId = null;
 
         if (req.spotUserId() != null) {
             SpotUser spotUser = spotUserRepository.findByUserIdAndId(userId, req.spotUserId())
                     .orElseThrow(() -> new EntityNotFoundException("장소를 찾을 수 없습니다."));
-            daySchedule.setSpotUser(spotUser);
-            daySchedule.setSpotNameSnapshot(
-                    spotUser.getCustomName() == null || spotUser.getCustomName().isBlank()
-                            ? spotUser.getSpot().getSpotName()
-                            : spotUser.getCustomName()
-            );
-            daySchedule.setSpotLocationSnapshot(spotUser.getSpot().getLocation());
-            daySchedule.setSpotTypeSnapshot(spotUser.getSpotType());
+            if (userId.equals(dataOwnerId)) daySchedule.setSpotUser(spotUser);
+            applySpotSnapshot(daySchedule, spotUser);
+            personalSpotId = spotUser.getSpot().getId();
         } else if (req.spotName() != null && !req.spotName().isBlank()) {
             daySchedule.setSpotNameSnapshot(req.spotName().trim());
             if (req.lat() != null && req.lng() != null) {
@@ -141,21 +143,34 @@ public class DayScheduleService {
 
         List<DaySchedule> updatedSchedules= recalculateTimesForDay(null,null, schedules);
         dayScheduleRepository.saveAll(updatedSchedules);
-        return updatedSchedules.stream()
-                .map(DayScheduleResponse::toDto)
-                .toList();
+        if (personalSpotId != null) rememberPersonalSpot(userId, daySchedule, personalSpotId);
+        if (planDay.getPlan() != null) planLiveUpdateService.publishAfterCommit(planDay.getPlan().getId(), userId);
+        return toScheduleResponses(updatedSchedules, userId);
     }
 
     public List<DayScheduleResponse> updateSchedule(Long userId, Long scheduleId, ScheduleUpdateRequest req) {
         DaySchedule schedule = findScheduleByUserIdAndId(userId, scheduleId);
+        Long dataOwnerId = schedule.getUserId();
+        if (req.expectedVersion() == null) {
+            throw new IllegalArgumentException("일정 버전 정보가 없습니다. 최신 일정을 다시 불러와 주세요.");
+        }
+        if (!req.expectedVersion().equals(schedule.getVersion())) {
+            throw new ScheduleEditConflictException(
+                    "다른 사용자가 이 일정을 수정했습니다.",
+                    DayScheduleResponse.toDto(schedule, userId.equals(dataOwnerId))
+            );
+        }
 
         if (req.spotUserId() != null) {
             if (req.spotUserId() == 0) {
-                schedule.setSpotUser(null);
+                if (userId.equals(dataOwnerId)) schedule.setSpotUser(null);
+                rememberPersonalSpot(userId, schedule, null);
             } else {
                 SpotUser spotUser = spotUserRepository.findByUserIdAndId(userId, req.spotUserId())
                     .orElseThrow(() -> new EntityNotFoundException("장소를 찾을 수 없습니다."));
-                schedule.setSpotUser(spotUser);
+                schedule.setSpotUser(userId.equals(dataOwnerId) ? spotUser : null);
+                applySpotSnapshot(schedule, spotUser);
+                rememberPersonalSpot(userId, schedule, spotUser.getSpot().getId());
             }
         }
         if (req.spotName() != null) schedule.setSpotNameSnapshot(req.spotName());
@@ -172,20 +187,22 @@ public class DayScheduleService {
         if (req.movingMemo() != null) schedule.setMovingMemo(req.movingMemo());
 
         List<DaySchedule> schedules = dayScheduleRepository.findAllByUserIdAndPlanDayIdOrderByScheduleOrderAsc(
-                userId,
+                dataOwnerId,
                 schedule.getPlanDay().getId()
         );
         if (schedule.getPlanDay().getScheduleMode() == ScheduleMode.SIMPLE) adjustSimpleDurations(schedules);
         List<DaySchedule> updatedSchedules= recalculateTimesForDay(null, null, schedules);
         dayScheduleRepository.saveAll(updatedSchedules);
 
-        return updatedSchedules.stream()
-                .map(DayScheduleResponse::toDto)
-                .toList();
+        if (schedule.getPlanDay().getPlan() != null) {
+            planLiveUpdateService.publishAfterCommit(schedule.getPlanDay().getPlan().getId(), userId);
+        }
+        return toScheduleResponses(updatedSchedules, userId);
     }
 
     public List<DayScheduleResponse> reorderSchedule(Long userId, Long dayId, Long scheduleId, ScheduleReorderRequest req) {
-        List<DaySchedule> schedules = dayScheduleRepository.findAllByUserIdAndPlanDayIdOrderByScheduleOrderAsc(userId, dayId);
+        PlanDay day = findDayByUserIdAndId(userId, dayId);
+        List<DaySchedule> schedules = dayScheduleRepository.findAllByUserIdAndPlanDayIdOrderByScheduleOrderAsc(day.getUserId(), dayId);
 
         DaySchedule target = schedules.stream()
                 .filter(s -> s.getId().equals(scheduleId))
@@ -198,9 +215,8 @@ public class DayScheduleService {
         List<DaySchedule> updatedSchedules= recalculateTimesForDay(null, null,schedules);
         dayScheduleRepository.saveAll(updatedSchedules);
 
-        return updatedSchedules.stream()
-                .map(DayScheduleResponse::toDto)
-                .toList();
+        if (day.getPlan() != null) planLiveUpdateService.publishAfterCommit(day.getPlan().getId(), userId);
+        return toScheduleResponses(updatedSchedules, userId);
     }
 
     public ScheduleTransferResponse transferSchedule(Long userId, Long scheduleId, ScheduleTransferRequest req) {
@@ -211,15 +227,18 @@ public class DayScheduleService {
         DaySchedule source = findScheduleByUserIdAndId(userId, scheduleId);
         PlanDay sourceDay = source.getPlanDay();
         PlanDay targetDay = findDayByUserIdAndId(userId, req.targetDayId());
+        if (!sourceDay.getUserId().equals(targetDay.getUserId())) {
+            throw new IllegalArgumentException("일정은 같은 소유자의 계획 사이에서만 이동할 수 있습니다.");
+        }
         if (sourceDay.getId().equals(targetDay.getId())) {
             throw new IllegalArgumentException("현재 일차가 아닌 다른 일차를 선택해 주세요.");
         }
 
         List<DaySchedule> sourceSchedules = new java.util.ArrayList<>(
-                dayScheduleRepository.findAllByUserIdAndPlanDayIdOrderByScheduleOrderAsc(userId, sourceDay.getId())
+                dayScheduleRepository.findAllByUserIdAndPlanDayIdOrderByScheduleOrderAsc(sourceDay.getUserId(), sourceDay.getId())
         );
         List<DaySchedule> targetSchedules = new java.util.ArrayList<>(
-                dayScheduleRepository.findAllByUserIdAndPlanDayIdOrderByScheduleOrderAsc(userId, targetDay.getId())
+                dayScheduleRepository.findAllByUserIdAndPlanDayIdOrderByScheduleOrderAsc(targetDay.getUserId(), targetDay.getId())
         );
         int targetOrder = req.targetOrder() == null ? targetSchedules.size() : req.targetOrder();
         if (targetOrder < 0 || targetOrder > targetSchedules.size()) {
@@ -250,12 +269,18 @@ public class DayScheduleService {
         targetSchedules = recalculateTimesForDay(null, null, targetSchedules);
         dayScheduleRepository.saveAll(targetSchedules);
 
+        if (sourceDay.getPlan() != null) planLiveUpdateService.publishAfterCommit(sourceDay.getPlan().getId(), userId);
+        if (targetDay.getPlan() != null && (sourceDay.getPlan() == null
+                || !targetDay.getPlan().getId().equals(sourceDay.getPlan().getId()))) {
+            planLiveUpdateService.publishAfterCommit(targetDay.getPlan().getId(), userId);
+        }
+
         return new ScheduleTransferResponse(
                 transferred.getId(),
                 sourceDay.getId(),
                 targetDay.getId(),
-                sourceSchedules.stream().map(DayScheduleResponse::toDto).toList(),
-                targetSchedules.stream().map(DayScheduleResponse::toDto).toList()
+                toScheduleResponses(sourceSchedules, userId),
+                toScheduleResponses(targetSchedules, userId)
         );
     }
 
@@ -286,52 +311,26 @@ public class DayScheduleService {
 
     public List<DayScheduleResponse> deleteSchedule(Long userId, Long scheduleId) {
         DaySchedule schedule = findScheduleByUserIdAndId(userId, scheduleId);
+        Long dataOwnerId = schedule.getUserId();
+        Long planId = schedule.getPlanDay().getPlan() == null ? null : schedule.getPlanDay().getPlan().getId();
         dayScheduleRepository.delete(schedule);
 
-        List<DaySchedule> updatedSchedules= recalculateTimesForDay(userId, schedule.getPlanDay().getId(),null);
+        List<DaySchedule> updatedSchedules= recalculateTimesForDay(dataOwnerId, schedule.getPlanDay().getId(),null);
         dayScheduleRepository.saveAll(updatedSchedules);
-        return updatedSchedules.stream()
-                .map(DayScheduleResponse::toDto)
-                .toList();
+        planLiveUpdateService.publishAfterCommit(planId, userId);
+        return toScheduleResponses(updatedSchedules, userId);
     }
 
 
     @Transactional
     public void updateVisit(Long userId, Long scheduleId){
         DaySchedule schedule = findScheduleByUserIdAndId(userId,scheduleId);
-        boolean newCheckedState = !schedule.getIsChecked();
-        schedule.setIsChecked(newCheckedState);
-        if (newCheckedState) schedule.setIsSkipped(false);
-        if (!newCheckedState) {
-            spotVisitHistoryRepository.deleteByUserIdAndScheduleId(userId, scheduleId);
-        }
-
-        if (schedule.getSpotUser()!=null ){
-            SpotUser spotUser=schedule.getSpotUser();
-
-            if (newCheckedState){
-                spotUser.setIsVisit(true);
-
-                SpotVisitHistory spotVisitHistory = new SpotVisitHistory();
-                spotVisitHistory.setUserId(userId);
-                spotVisitHistory.setScheduleId(scheduleId);
-                spotVisitHistory.setSpotUser(spotUser);
-                spotVisitHistory.setDayId(schedule.getPlanDay().getId());
-                spotVisitHistory.setDayNameSnapshot(schedule.getPlanDay().getDayName());
-                PlanDay day = schedule.getPlanDay();
-                LocalDate startDate = day.getPlan() == null ? null : day.getPlan().getPlanStartDate();
-                spotVisitHistory.setVisitedAt(startDate == null
-                        ? LocalDate.now()
-                        : startDate.plusDays(day.getDayOrder() - 1L));
-
-                if (schedule.getPlanDay().getPlan() != null) {
-                    spotVisitHistory.setPlanId(schedule.getPlanDay().getPlan().getId());
-                    spotVisitHistory.setPlanNameSnapshot(schedule.getPlanDay().getPlan().getPlanName());
-                }
-
-                spotVisitHistoryRepository.save(spotVisitHistory);
-            }
-        }
+        ScheduleVisitStatus status = scheduleVisitStatusRepository.findByUserIdAndScheduleId(userId, scheduleId)
+                .orElseGet(() -> newVisitStatus(userId, schedule));
+        status.setChecked(!status.isChecked());
+        if (status.isChecked()) status.setSkipped(false);
+        saveOrRemoveStatus(status);
+        syncPersonalSpotVisit(schedule, userId, status.isChecked());
     }
 
 
@@ -392,7 +391,7 @@ public class DayScheduleService {
         }
 
         List<DaySchedule> schedules = dayScheduleRepository
-                .findAllByUserIdAndPlanDayIdOrderByScheduleOrderAsc(userId, dayId);
+                .findAllByUserIdAndPlanDayIdOrderByScheduleOrderAsc(day.getUserId(), dayId);
         Map<Long, DaySchedule> byId = schedules.stream()
                 .collect(Collectors.toMap(DaySchedule::getId, Function.identity()));
         HashSet<Long> appliedIds = new HashSet<>();
@@ -417,16 +416,16 @@ public class DayScheduleService {
 
         List<DaySchedule> updated = recalculateTimesForDay(null, null, schedules);
         dayScheduleRepository.saveAll(updated);
-        return updated.stream().map(DayScheduleResponse::toDto).toList();
+        if (day.getPlan() != null) planLiveUpdateService.publishAfterCommit(day.getPlan().getId(), userId);
+        return toScheduleResponses(updated, userId);
     }
 
     @Transactional(readOnly = true)
     public List<UnlinkedSpotGroupResponse> getUnlinkedSpotGroups(Long userId, Long planId) {
-        planRepository.findByUserIdAndId(userId, planId)
-                .orElseThrow(() -> new EntityNotFoundException("여행 계획을 찾을 수 없습니다."));
+        Long dataOwnerId = planAccessService.requireEditorOwnerId(userId, planId);
         LinkedHashMap<String, UnlinkedSpotGroupResponse> groups = new LinkedHashMap<>();
         dayScheduleRepository
-                .findAllByUserIdAndPlanDayPlanIdAndSpotUserIsNullOrderByPlanDayDayOrderAscScheduleOrderAsc(userId, planId)
+                .findAllByUserIdAndPlanDayPlanIdAndSpotUserIsNullOrderByPlanDayDayOrderAscScheduleOrderAsc(dataOwnerId, planId)
                 .stream()
                 .map(DaySchedule::getSpotNameSnapshot)
                 .filter(name -> name != null && !name.isBlank())
@@ -444,40 +443,39 @@ public class DayScheduleService {
 
     @Transactional
     public int linkSchedulesToSpot(Long userId, Long planId, ScheduleSpotLinkRequest req) {
-        planRepository.findByUserIdAndId(userId, planId)
-                .orElseThrow(() -> new EntityNotFoundException("여행 계획을 찾을 수 없습니다."));
+        Long dataOwnerId = planAccessService.requireEditorOwnerId(userId, planId);
         if (req.sourceSpotName() == null || req.sourceSpotName().isBlank() || req.spotUserId() == null) {
             throw new IllegalArgumentException("연결할 일정 장소와 내 장소를 선택해 주세요.");
         }
         SpotUser target = spotUserRepository.findByUserIdAndId(userId, req.spotUserId())
                 .orElseThrow(() -> new EntityNotFoundException("내 장소를 찾을 수 없습니다."));
         List<DaySchedule> matches = dayScheduleRepository
-                .findAllByUserIdAndPlanDayPlanIdAndSpotUserIsNullOrderByPlanDayDayOrderAscScheduleOrderAsc(userId, planId)
+                .findAllByUserIdAndPlanDayPlanIdAndSpotUserIsNullOrderByPlanDayDayOrderAscScheduleOrderAsc(dataOwnerId, planId)
                 .stream()
                 .filter(schedule -> schedule.getSpotNameSnapshot() != null
                         && schedule.getSpotNameSnapshot().trim().equalsIgnoreCase(req.sourceSpotName().trim()))
                 .toList();
         for (DaySchedule schedule : matches) {
-            schedule.setSpotUser(target);
-            schedule.setSpotNameSnapshot(target.getCustomName() == null || target.getCustomName().isBlank()
-                    ? target.getSpot().getSpotName()
-                    : target.getCustomName());
-            schedule.setSpotLocationSnapshot((org.locationtech.jts.geom.Point) target.getSpot().getLocation().copy());
-            schedule.setSpotTypeSnapshot(target.getSpotType());
+            if (userId.equals(dataOwnerId)) schedule.setSpotUser(target);
+            applySpotSnapshot(schedule, target);
+            rememberPersonalSpot(userId, schedule, target.getSpot().getId());
         }
         dayScheduleRepository.saveAll(matches);
+        planLiveUpdateService.publishAfterCommit(planId, userId);
         return matches.size();
     }
 
     @Transactional
     public void updateSkip(Long userId, Long scheduleId) {
         DaySchedule schedule = findScheduleByUserIdAndId(userId, scheduleId);
-        boolean newSkippedState = !Boolean.TRUE.equals(schedule.getIsSkipped());
-        schedule.setIsSkipped(newSkippedState);
-        if (newSkippedState && Boolean.TRUE.equals(schedule.getIsChecked())) {
-            schedule.setIsChecked(false);
-            spotVisitHistoryRepository.deleteByUserIdAndScheduleId(userId, scheduleId);
+        ScheduleVisitStatus status = scheduleVisitStatusRepository.findByUserIdAndScheduleId(userId, scheduleId)
+                .orElseGet(() -> newVisitStatus(userId, schedule));
+        status.setSkipped(!status.isSkipped());
+        if (status.isSkipped()) {
+            status.setChecked(false);
+            syncPersonalSpotVisit(schedule, userId, false);
         }
+        saveOrRemoveStatus(status);
     }
 
     private void adjustSimpleDurations(List<DaySchedule> schedules) {
@@ -493,13 +491,118 @@ public class DayScheduleService {
 
 
     private DaySchedule findScheduleByUserIdAndId(Long userId, Long planId) {
-        return dayScheduleRepository.findByUserIdAndId(userId, planId)
+        DaySchedule schedule = dayScheduleRepository.findById(planId)
                 .orElseThrow(() -> new EntityNotFoundException("일정을 찾을 수 없습니다."));
+        PlanDay day = schedule.getPlanDay();
+        if (day == null) throw new EntityNotFoundException("일정을 찾을 수 없습니다.");
+        if (day.getPlan() == null) {
+            if (!day.getUserId().equals(userId) || !schedule.getUserId().equals(userId)) {
+                throw new EntityNotFoundException("일정을 찾을 수 없습니다.");
+            }
+            return schedule;
+        }
+        Long ownerId = planAccessService.requireEditorOwnerId(userId, day.getPlan().getId());
+        if (!day.getUserId().equals(ownerId) || !schedule.getUserId().equals(ownerId)) {
+            throw new EntityNotFoundException("일정을 찾을 수 없습니다.");
+        }
+        return schedule;
     }
 
     private PlanDay findDayByUserIdAndId(Long userId, Long planId) {
-        return plandayRepository.findByUserIdAndId(userId, planId)
+        PlanDay day = plandayRepository.findById(planId)
                 .orElseThrow(() -> new EntityNotFoundException("해당 하루 일정을 찾을 수 없습니다."));
+        if (day.getPlan() == null) {
+            if (!day.getUserId().equals(userId)) throw new EntityNotFoundException("해당 하루 일정을 찾을 수 없습니다.");
+            return day;
+        }
+        Long ownerId = planAccessService.requireEditorOwnerId(userId, day.getPlan().getId());
+        if (!day.getUserId().equals(ownerId)) throw new EntityNotFoundException("해당 하루 일정을 찾을 수 없습니다.");
+        return day;
+    }
+
+    private List<DayScheduleResponse> toScheduleResponses(List<DaySchedule> schedules, Long actorUserId) {
+        if (schedules.isEmpty()) return List.of();
+        List<Long> scheduleIds = schedules.stream().map(DaySchedule::getId).toList();
+        Map<Long, ScheduleVisitStatus> statuses = scheduleVisitStatusRepository
+                .findAllByUserIdAndScheduleIdIn(actorUserId, scheduleIds).stream()
+                .collect(Collectors.toMap(ScheduleVisitStatus::getScheduleId, Function.identity()));
+        return schedules.stream()
+                .map(schedule -> {
+                    ScheduleVisitStatus status = statuses.get(schedule.getId());
+                    return DayScheduleResponse.toDto(
+                            schedule,
+                            actorUserId.equals(schedule.getUserId()),
+                            status != null && status.isChecked(),
+                            status != null && status.isSkipped()
+                    );
+                })
+                .toList();
+    }
+
+    private ScheduleVisitStatus newVisitStatus(Long userId, DaySchedule schedule) {
+        ScheduleVisitStatus status = new ScheduleVisitStatus();
+        status.setUserId(userId);
+        status.setScheduleId(schedule.getId());
+        if (schedule.getSpotUser() != null) status.setSpotId(schedule.getSpotUser().getSpot().getId());
+        return status;
+    }
+
+    private void saveOrRemoveStatus(ScheduleVisitStatus status) {
+        if (!status.isChecked() && !status.isSkipped() && status.getSpotId() == null && !status.isSpotLinkCleared()) {
+            scheduleVisitStatusRepository.deleteByUserIdAndScheduleId(status.getUserId(), status.getScheduleId());
+        } else {
+            scheduleVisitStatusRepository.save(status);
+        }
+    }
+
+    private void syncPersonalSpotVisit(DaySchedule schedule, Long userId, boolean isChecked) {
+        ScheduleVisitStatus status = scheduleVisitStatusRepository.findByUserIdAndScheduleId(userId, schedule.getId()).orElse(null);
+        Long spotId = status == null
+                ? schedule.getSpotUser() == null ? null : schedule.getSpotUser().getSpot().getId()
+                : status.isSpotLinkCleared() ? null
+                : status.getSpotId() == null
+                        ? schedule.getSpotUser() == null ? null : schedule.getSpotUser().getSpot().getId()
+                        : status.getSpotId();
+        SpotUser personalSpot = spotId == null ? null
+                : spotUserRepository.findByUserIdAndSpotId(userId, spotId).orElse(null);
+        if (!isChecked) {
+            spotVisitHistoryRepository.deleteByUserIdAndScheduleId(userId, schedule.getId());
+            return;
+        }
+        if (personalSpot == null) return;
+
+        personalSpot.setIsVisit(true);
+        if (spotVisitHistoryRepository.existsByUserIdAndScheduleId(userId, schedule.getId())) return;
+        SpotVisitHistory history = new SpotVisitHistory();
+        history.setUserId(userId);
+        history.setScheduleId(schedule.getId());
+        history.setSpotUser(personalSpot);
+        history.setDayId(schedule.getPlanDay().getId());
+        history.setDayNameSnapshot(schedule.getPlanDay().getDayName());
+        PlanDay day = schedule.getPlanDay();
+        LocalDate startDate = day.getPlan() == null ? null : day.getPlan().getPlanStartDate();
+        history.setVisitedAt(startDate == null ? LocalDate.now() : startDate.plusDays(day.getDayOrder() - 1L));
+        if (day.getPlan() != null) {
+            history.setPlanId(day.getPlan().getId());
+            history.setPlanNameSnapshot(day.getPlan().getPlanName());
+        }
+        spotVisitHistoryRepository.save(history);
+    }
+
+    private void rememberPersonalSpot(Long userId, DaySchedule schedule, Long spotId) {
+        ScheduleVisitStatus status = scheduleVisitStatusRepository.findByUserIdAndScheduleId(userId, schedule.getId())
+                .orElseGet(() -> newVisitStatus(userId, schedule));
+        status.setSpotId(spotId);
+        status.setSpotLinkCleared(spotId == null);
+        saveOrRemoveStatus(status);
+    }
+
+    private void applySpotSnapshot(DaySchedule schedule, SpotUser spotUser) {
+        schedule.setSpotNameSnapshot(spotUser.getCustomName() == null || spotUser.getCustomName().isBlank()
+                ? spotUser.getSpot().getSpotName()
+                : spotUser.getCustomName());
+        schedule.setSpotLocationSnapshot((org.locationtech.jts.geom.Point) spotUser.getSpot().getLocation().copy());
+        schedule.setSpotTypeSnapshot(spotUser.getSpotType());
     }
 
 

@@ -1,4 +1,4 @@
 package study.yume.dto.planshare.request;
 
-public record CreatePlanShareRequest(Integer expiresInDays) {
+public record CreatePlanShareRequest(Integer expiresInDays, String accessMode) {
 }

@@ -6,6 +6,7 @@ public record PlanShareStatusResponse(
         boolean active,
         LocalDateTime updatedAt,
         LocalDateTime expiresAt,
-        String token
+        String token,
+        String accessMode
 ) {
 }

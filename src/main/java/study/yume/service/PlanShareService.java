@@ -80,13 +80,16 @@ public class PlanShareService {
                 .orElseThrow(() -> new EntityNotFoundException("여행 계획을 찾을 수 없습니다."));
         return planShareRepository.findByPlanId(planId)
                 .map(share -> {
-                    boolean active = isActive(share);
+                    LocalDateTime now = LocalDateTime.now();
+                    boolean active = isActive(share, now);
+                    String state = active ? "ACTIVE"
+                            : share.getRevokedAt() != null ? "REVOKED" : "EXPIRED";
                     String token = active && share.getTokenCiphertext() != null
                             ? planShareTokenCipher.decrypt(share.getTokenCiphertext(), planId)
                             : null;
-                    return new PlanShareStatusResponse(active, share.getUpdatedAt(), share.getExpiresAt(), token, share.getAccessMode());
+                    return new PlanShareStatusResponse(state, active, share.getUpdatedAt(), share.getExpiresAt(), token, share.getAccessMode());
                 })
-                .orElseGet(() -> new PlanShareStatusResponse(false, null, null, null, "VIEW"));
+                .orElseGet(() -> new PlanShareStatusResponse("NOT_CREATED", false, null, null, null, "VIEW"));
     }
 
     public void revoke(Long userId, Long planId) {
@@ -122,6 +125,7 @@ public class PlanShareService {
             member.setStatus(PlanMemberStatus.ACCEPTED);
             planMemberRepository.save(member);
         } else if (existing.getStatus() == PlanMemberStatus.PENDING) {
+            existing.setShareId(share.getId());
             existing.setStatus(PlanMemberStatus.ACCEPTED);
             planMemberRepository.save(existing);
         }
@@ -134,6 +138,22 @@ public class PlanShareService {
         return findActiveShare(token)
                 .flatMap(share -> planRepository.findById(share.getPlanId())
                         .map(plan -> toPublicResponse(plan, share)));
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<List<PublicPlanShareResponse.Schedule>> getPublicPlanDaySchedules(String token, Integer dayOrder) {
+        if (dayOrder == null || dayOrder < 1) return Optional.empty();
+        return findActiveShare(token)
+                .flatMap(share -> planRepository.findById(share.getPlanId())
+                        .flatMap(plan -> planDayRepository.findAllByUserIdAndPlanIdOrderByDayOrderAsc(plan.getUserId(), share.getPlanId())
+                                .stream()
+                                .filter(day -> day.getDayOrder().equals(dayOrder))
+                                .findFirst()
+                                .map(day -> dayScheduleRepository
+                                        .findAllByUserIdAndPlanDayIdOrderByScheduleOrderAsc(plan.getUserId(), day.getId())
+                                        .stream()
+                                        .map(this::toPublicSchedule)
+                                        .toList())));
     }
 
     public SseEmitter subscribePublicPlan(String token) {
@@ -152,8 +172,12 @@ public class PlanShareService {
     }
 
     private boolean isActive(PlanShare share) {
+        return isActive(share, LocalDateTime.now());
+    }
+
+    private boolean isActive(PlanShare share, LocalDateTime now) {
         return share.getRevokedAt() == null
-                && (share.getExpiresAt() == null || share.getExpiresAt().isAfter(LocalDateTime.now()));
+                && (share.getExpiresAt() == null || share.getExpiresAt().isAfter(now));
     }
 
     private PublicPlanShareResponse toPublicResponse(Plan plan, PlanShare share) {
@@ -165,12 +189,7 @@ public class PlanShareService {
                         day.getDayName(),
                         day.getDayOrder(),
                         day.getMemo(),
-                        day.getScheduleMode(),
-                        dayScheduleRepository
-                                .findAllByUserIdAndPlanDayIdOrderByScheduleOrderAsc(plan.getUserId(), day.getId())
-                                .stream()
-                                .map(this::toPublicSchedule)
-                                .toList()
+                        day.getScheduleMode()
                 ))
                 .toList();
 

@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import study.yume.dto.ApiResponse;
@@ -88,6 +89,20 @@ public class PlanShareController {
                 .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND)
                         .cacheControl(CacheControl.noStore())
                         .body(ApiResponse.<PublicPlanShareResponse>error("공유 링크가 만료되었거나 더 이상 사용할 수 없습니다.")));
+    }
+
+    @GetMapping("/api/public/plans/share/day-schedules")
+    public ResponseEntity<ApiResponse<java.util.List<PublicPlanShareResponse.Schedule>>> getPublicPlanDaySchedules(
+            @RequestHeader("X-Plan-Share-Token") String token,
+            @RequestParam Integer dayOrder
+    ) {
+        return planShareService.getPublicPlanDaySchedules(token, dayOrder)
+                .map(schedules -> ResponseEntity.ok()
+                        .cacheControl(CacheControl.noStore())
+                        .body(ApiResponse.success(schedules)))
+                .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .cacheControl(CacheControl.noStore())
+                        .body(ApiResponse.error("공유 날짜를 찾을 수 없습니다.")));
     }
 
     @GetMapping(value = "/api/public/plans/share/events", produces = MediaType.TEXT_EVENT_STREAM_VALUE)

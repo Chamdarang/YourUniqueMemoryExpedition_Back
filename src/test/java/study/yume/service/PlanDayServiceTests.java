@@ -108,12 +108,13 @@ class PlanDayServiceTests {
     @Mock private DayScheduleRepository dayScheduleRepository;
     @Mock private study.yume.repository.ScheduleVisitStatusRepository scheduleVisitStatusRepository;
     @Mock private PlanAccessService planAccessService;
+    @Mock private PlanLiveUpdateService planLiveUpdateService;
 
     private PlanDayService service;
 
     @BeforeEach
     void setUp() {
-        service = new PlanDayService(planDayRepository, dayScheduleRepository, scheduleVisitStatusRepository, planAccessService);
+        service = new PlanDayService(planDayRepository, dayScheduleRepository, scheduleVisitStatusRepository, planAccessService, planLiveUpdateService);
     }
 
     @Test

@@ -84,14 +84,18 @@ public class PlanService {
         LocalDate newStart = req.planStartDate() != null ? req.planStartDate() : plan.getPlanStartDate();
         LocalDate newEnd = req.planEndDate() != null ? req.planEndDate() : plan.getPlanEndDate();
         Integer newDays = req.planDays() != null ? req.planDays() : plan.getPlanDays();
-        if (!plan.getUserId().equals(userId) && newDays != null) {
-            int lastAssignedDay = planDayRepository.findAllByUserIdAndPlanIdOrderByDayOrderAsc(plan.getUserId(), planId)
-                    .stream().mapToInt(assignedDay -> assignedDay.getDayOrder()).max().orElse(0);
-            if (newDays < lastAssignedDay) {
-                throw new IllegalArgumentException("일정이 등록된 범위보다 짧게 줄이려면 여행 소유자가 날짜를 먼저 정리해야 합니다.");
-            }
+        List<study.yume.model.PlanDay> assignedDays = newDays == null ? List.of()
+                : planDayRepository.findAllByUserIdAndPlanIdOrderByDayOrderAsc(plan.getUserId(), planId);
+        List<study.yume.model.PlanDay> daysOutsideNewPeriod = newDays == null ? List.of()
+                : assignedDays.stream().filter(day -> day.getDayOrder() > newDays).toList();
+        if (!plan.getUserId().equals(userId) && !daysOutsideNewPeriod.isEmpty()) {
+            throw new IllegalArgumentException("일정이 등록된 범위보다 짧게 줄이려면 여행 소유자가 날짜를 먼저 정리해야 합니다.");
         }
         List<Long> detachDayIds = req.detachDayIds() == null ? List.of() : req.detachDayIds();
+        if (plan.getUserId().equals(userId)
+                && daysOutsideNewPeriod.stream().anyMatch(day -> !detachDayIds.contains(day.getId()))) {
+            throw new IllegalArgumentException("여행 기간 밖의 일차를 먼저 하루 코스 보관함으로 옮겨 주세요.");
+        }
         if (!detachDayIds.isEmpty()) {
             if (newDays == null) {
                 throw new IllegalArgumentException("날짜를 분리하려면 여행 기간을 먼저 지정해야 합니다.");
@@ -99,8 +103,7 @@ public class PlanService {
             if (!plan.getUserId().equals(userId)) {
                 throw new IllegalArgumentException("날짜 분리는 여행 소유자만 할 수 있습니다.");
             }
-            List<study.yume.model.PlanDay> selectedDays = planDayRepository
-                    .findAllByUserIdAndPlanIdOrderByDayOrderAsc(plan.getUserId(), planId).stream()
+            List<study.yume.model.PlanDay> selectedDays = assignedDays.stream()
                     .filter(day -> detachDayIds.contains(day.getId()))
                     .toList();
             if (selectedDays.size() != detachDayIds.stream().distinct().count()

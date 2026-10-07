@@ -10,7 +10,9 @@ import study.yume.repository.*;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -23,14 +25,34 @@ class ScheduleVisitTests {
     @Mock PlanDayRepository days;
     @Mock SpotUserRepository spots;
     @Mock SpotVisitHistoryRepository histories;
-    @Mock PlanRepository plans;
+    @Mock ScheduleVisitStatusRepository statusesRepository;
+    @Mock PlanAccessService planAccessService;
+    @Mock PlanLiveUpdateService planLiveUpdateService;
     DayScheduleService service;
     List<SpotVisitHistory> saved;
+    Map<Long, ScheduleVisitStatus> statuses;
+    SpotUser personalSpot;
 
     @BeforeEach
     void setUp() {
-        service = new DayScheduleService(schedules, days, spots, histories, plans);
+        service = new DayScheduleService(schedules, days, spots, histories, statusesRepository, planAccessService, planLiveUpdateService);
         saved = new ArrayList<>();
+        statuses = new HashMap<>();
+        Spot spot = new Spot();
+        spot.setId(70L);
+        personalSpot = new SpotUser();
+        personalSpot.setId(40L);
+        personalSpot.setSpot(spot);
+        personalSpot.setIsVisit(false);
+        when(statusesRepository.findByUserIdAndScheduleId(anyLong(), anyLong())).thenAnswer(invocation ->
+                Optional.ofNullable(statuses.get(invocation.getArgument(1)))
+        );
+        when(statusesRepository.save(any())).thenAnswer(invocation -> {
+            ScheduleVisitStatus status = invocation.getArgument(0);
+            statuses.put(status.getScheduleId(), status);
+            return status;
+        });
+        when(spots.findByUserIdAndSpotId(1L, 70L)).thenReturn(Optional.of(personalSpot));
         when(histories.save(any())).thenAnswer(invocation -> {
             SpotVisitHistory history = invocation.getArgument(0);
             saved.add(history);
@@ -47,6 +69,7 @@ class ScheduleVisitTests {
         plan.setPlanStartDate(LocalDate.of(2024, 12, 31));
         schedule.getPlanDay().setPlan(plan);
         schedule.getPlanDay().setDayOrder(2);
+        when(planAccessService.requireEditorOwnerId(1L, 30L)).thenReturn(1L);
 
         service.updateVisit(1L, 10L);
 
@@ -93,25 +116,24 @@ class ScheduleVisitTests {
         else service.updateVisit(1L, 10L);
 
         assertThat(saved).extracting(SpotVisitHistory::getScheduleId).containsExactly(11L);
-        assertThat(first.getIsChecked()).isFalse();
-        assertThat(second.getIsChecked()).isTrue();
-        assertThat(first.getIsSkipped()).isEqualTo(skip);
+        assertThat(statuses.get(10L).isChecked()).isFalse();
+        assertThat(statuses.get(11L).isChecked()).isTrue();
+        assertThat(statuses.get(10L).isSkipped()).isEqualTo(skip);
     }
 
     private DaySchedule schedule(Long id) {
         PlanDay day = new PlanDay();
         day.setId(20L);
+        day.setUserId(1L);
         day.setDayName("방문 일차");
         day.setDayOrder(1);
-        SpotUser spot = new SpotUser();
-        spot.setId(40L);
         DaySchedule schedule = new DaySchedule();
         schedule.setId(id);
         schedule.setUserId(1L);
         schedule.setPlanDay(day);
-        schedule.setSpotUser(spot);
+        schedule.setSpotUser(personalSpot);
         schedule.setIsChecked(false);
-        when(schedules.findByUserIdAndId(1L, id)).thenReturn(Optional.of(schedule));
+        when(schedules.findById(id)).thenReturn(Optional.of(schedule));
         return schedule;
     }
 }

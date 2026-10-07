@@ -21,8 +21,7 @@ public record PublicPlanShareResponse(
             String dayName,
             Integer dayOrder,
             String memo,
-            ScheduleMode scheduleMode,
-            List<Schedule> schedules
+            ScheduleMode scheduleMode
     ) {
     }
 

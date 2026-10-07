@@ -11,7 +11,6 @@ import study.yume.model.PlanDay;
 import study.yume.model.enums.ScheduleMode;
 import study.yume.repository.DayScheduleRepository;
 import study.yume.repository.PlanDayRepository;
-import study.yume.repository.PlanRepository;
 
 import java.time.LocalTime;
 import java.util.List;
@@ -23,9 +22,9 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class PlanRouteAuditServiceTests {
 
-    @Mock private PlanRepository planRepository;
     @Mock private PlanDayRepository planDayRepository;
     @Mock private DayScheduleRepository dayScheduleRepository;
+    @Mock private PlanAccessService planAccessService;
 
     @Test
     void reportsLocalScheduleProblemsAndMissingPlanDayWithoutCallingProviders() {
@@ -48,13 +47,13 @@ class PlanRouteAuditServiceTests {
         second.setFixedStartTime(true);
         second.setMovingDuration(30);
 
-        when(planRepository.findByUserIdAndId(3L, 10L)).thenReturn(Optional.of(plan));
+        when(planAccessService.requireEditor(3L, 10L)).thenReturn(plan);
         when(planDayRepository.findAllByUserIdAndPlanIdOrderByDayOrderAsc(3L, 10L)).thenReturn(List.of(firstDay));
         when(dayScheduleRepository.findAllByUserIdAndPlanDayPlanIdOrderByPlanDayDayOrderAscScheduleOrderAsc(3L, 10L))
                 .thenReturn(List.of(first, second));
 
         PlanRouteAuditResponse result = new PlanRouteAuditService(
-                planRepository, planDayRepository, dayScheduleRepository, 50
+                planDayRepository, dayScheduleRepository, planAccessService, 50
         ).audit(3L, 10L);
 
         assertThat(result.routesCalculated()).isFalse();

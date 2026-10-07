@@ -29,6 +29,7 @@ class DayRouteAuditServiceTests {
     @Mock private PlanDayRepository planDayRepository;
     @Mock private DayScheduleRepository dayScheduleRepository;
     @Mock private RouteEstimateService routeEstimateService;
+    @Mock private PlanAccessService planAccessService;
 
     @Test
     void reportsDelayAgainstFixedStartWithoutChangingSchedule() {
@@ -47,14 +48,14 @@ class DayRouteAuditServiceTests {
         to.setStartTime(LocalTime.of(10, 30));
         to.setFixedStartTime(true);
 
-        when(planDayRepository.findOneByUserIdAndId(3L, 7L)).thenReturn(Optional.of(day));
+        when(planDayRepository.findById(7L)).thenReturn(Optional.of(day));
         when(dayScheduleRepository.findAllByUserIdAndPlanDayIdOrderByScheduleOrderAsc(3L, 7L))
                 .thenReturn(List.of(from, to));
         when(routeEstimateService.estimate(anyLong(), any()))
                 .thenReturn(new RouteEstimateResponse(45, 12_000, "", ""));
 
         DayRouteAuditResponse result = new DayRouteAuditService(
-                planDayRepository, dayScheduleRepository, routeEstimateService
+                planDayRepository, dayScheduleRepository, routeEstimateService, planAccessService
         ).audit(3L, 7L);
 
         assertThat(result.totalLegs()).isEqualTo(1);

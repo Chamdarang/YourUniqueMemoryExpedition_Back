@@ -6,6 +6,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.mockito.Mock;
+import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
 import study.yume.dto.schedule.request.ScheduleCreateRequest;
 import study.yume.dto.schedule.request.ScheduleTransferRequest;
@@ -24,7 +25,7 @@ import study.yume.model.enums.ScheduleMode;
 import study.yume.model.enums.Transportation;
 import study.yume.repository.DayScheduleRepository;
 import study.yume.repository.PlanDayRepository;
-import study.yume.repository.PlanRepository;
+import study.yume.repository.ScheduleVisitStatusRepository;
 import study.yume.repository.SpotUserRepository;
 import study.yume.repository.SpotVisitHistoryRepository;
 
@@ -51,7 +52,11 @@ class DayScheduleServiceTests {
     @Mock
     private SpotVisitHistoryRepository spotVisitHistoryRepository;
     @Mock
-    private PlanRepository planRepository;
+    private ScheduleVisitStatusRepository scheduleVisitStatusRepository;
+    @Mock
+    private PlanAccessService planAccessService;
+    @Mock
+    private PlanLiveUpdateService planLiveUpdateService;
 
     private DayScheduleService service;
 
@@ -62,7 +67,9 @@ class DayScheduleServiceTests {
                 planDayRepository,
                 spotUserRepository,
                 spotVisitHistoryRepository,
-                planRepository
+                scheduleVisitStatusRepository,
+                planAccessService,
+                planLiveUpdateService
         );
     }
 
@@ -70,7 +77,7 @@ class DayScheduleServiceTests {
     void clearsSpotUserWhenZeroIsExplicitlyRequested() {
         DaySchedule schedule = schedule(10L, LocalTime.of(9, 0), false);
         schedule.setSpotUser(new SpotUser());
-        when(dayScheduleRepository.findByUserIdAndId(1L, 10L)).thenReturn(Optional.of(schedule));
+        when(dayScheduleRepository.findById(10L)).thenReturn(Optional.of(schedule));
         when(dayScheduleRepository.findAllByUserIdAndPlanDayIdOrderByScheduleOrderAsc(1L, 20L))
                 .thenReturn(List.of(schedule));
 
@@ -91,7 +98,7 @@ class DayScheduleServiceTests {
         following.setDuration(20);
         following.setMovingDuration(15);
 
-        when(dayScheduleRepository.findByUserIdAndId(1L, 11L)).thenReturn(Optional.of(fixed));
+        when(dayScheduleRepository.findById(11L)).thenReturn(Optional.of(fixed));
         when(dayScheduleRepository.findAllByUserIdAndPlanDayIdOrderByScheduleOrderAsc(1L, 20L))
                 .thenReturn(List.of(first, fixed, following));
 
@@ -106,6 +113,7 @@ class DayScheduleServiceTests {
     void createsQuickScheduleWithLinkedSpotFixedTimeAndMemo() {
         PlanDay day = new PlanDay();
         day.setId(20L);
+        day.setUserId(1L);
 
         Spot spot = new Spot();
         spot.setSpotName("원래 장소명");
@@ -119,7 +127,7 @@ class DayScheduleServiceTests {
 
         when(dayScheduleRepository.findAllByUserIdAndPlanDayIdOrderByScheduleOrderAsc(1L, 20L))
                 .thenReturn(new ArrayList<>());
-        when(planDayRepository.findByUserIdAndId(1L, 20L)).thenReturn(Optional.of(day));
+        when(planDayRepository.findById(20L)).thenReturn(Optional.of(day));
         when(spotUserRepository.findByUserIdAndId(1L, 30L)).thenReturn(Optional.of(spotUser));
 
         List<DayScheduleResponse> result = service.createSchedule(
@@ -143,11 +151,12 @@ class DayScheduleServiceTests {
     void createsQuickScheduleWithoutTimeAfterPreviousSchedule() {
         PlanDay day = new PlanDay();
         day.setId(20L);
+        day.setUserId(1L);
         DaySchedule first = schedule(10L, LocalTime.of(9, 0), false);
 
         when(dayScheduleRepository.findAllByUserIdAndPlanDayIdOrderByScheduleOrderAsc(1L, 20L))
                 .thenReturn(new ArrayList<>(List.of(first)));
-        when(planDayRepository.findByUserIdAndId(1L, 20L)).thenReturn(Optional.of(day));
+        when(planDayRepository.findById(20L)).thenReturn(Optional.of(day));
 
         List<DayScheduleResponse> result = service.createSchedule(
                 1L,
@@ -166,10 +175,11 @@ class DayScheduleServiceTests {
     void createsQuickScheduleWithMapCoordinatesWithoutRegisteringSpot() {
         PlanDay day = new PlanDay();
         day.setId(20L);
+        day.setUserId(1L);
 
         when(dayScheduleRepository.findAllByUserIdAndPlanDayIdOrderByScheduleOrderAsc(1L, 20L))
                 .thenReturn(new ArrayList<>());
-        when(planDayRepository.findByUserIdAndId(1L, 20L)).thenReturn(Optional.of(day));
+        when(planDayRepository.findById(20L)).thenReturn(Optional.of(day));
 
         List<DayScheduleResponse> result = service.createSchedule(
                 1L,
@@ -189,12 +199,13 @@ class DayScheduleServiceTests {
     void adjustsPreviousDurationToNextQuickScheduleStartTime() {
         PlanDay day = new PlanDay();
         day.setId(20L);
+        day.setUserId(1L);
         day.setScheduleMode(ScheduleMode.SIMPLE);
         DaySchedule first = schedule(10L, LocalTime.of(9, 0), true);
 
         when(dayScheduleRepository.findAllByUserIdAndPlanDayIdOrderByScheduleOrderAsc(1L, 20L))
                 .thenReturn(new ArrayList<>(List.of(first)));
-        when(planDayRepository.findByUserIdAndId(1L, 20L)).thenReturn(Optional.of(day));
+        when(planDayRepository.findById(20L)).thenReturn(Optional.of(day));
 
         List<DayScheduleResponse> result = service.createSchedule(
                 1L,
@@ -211,11 +222,12 @@ class DayScheduleServiceTests {
     void keepsQuickScheduleTimeEmptyInSimpleMode() {
         PlanDay day = new PlanDay();
         day.setId(20L);
+        day.setUserId(1L);
         day.setScheduleMode(ScheduleMode.SIMPLE);
 
         when(dayScheduleRepository.findAllByUserIdAndPlanDayIdOrderByScheduleOrderAsc(1L, 20L))
                 .thenReturn(new ArrayList<>());
-        when(planDayRepository.findByUserIdAndId(1L, 20L)).thenReturn(Optional.of(day));
+        when(planDayRepository.findById(20L)).thenReturn(Optional.of(day));
 
         List<DayScheduleResponse> result = service.createSchedule(
                 1L,
@@ -231,12 +243,14 @@ class DayScheduleServiceTests {
     @Test
     void togglesSkippedStateSeparatelyFromVisitState() {
         DaySchedule schedule = schedule(10L, LocalTime.of(9, 0), true);
-        when(dayScheduleRepository.findByUserIdAndId(1L, 10L)).thenReturn(Optional.of(schedule));
+        when(dayScheduleRepository.findById(10L)).thenReturn(Optional.of(schedule));
 
         service.updateSkip(1L, 10L);
 
-        assertThat(schedule.getIsSkipped()).isTrue();
-        assertThat(schedule.getIsChecked()).isFalse();
+        ArgumentCaptor<study.yume.model.ScheduleVisitStatus> statusCaptor = ArgumentCaptor.forClass(study.yume.model.ScheduleVisitStatus.class);
+        verify(scheduleVisitStatusRepository).save(statusCaptor.capture());
+        assertThat(statusCaptor.getValue().isSkipped()).isTrue();
+        assertThat(statusCaptor.getValue().isChecked()).isFalse();
     }
 
     @Test
@@ -248,7 +262,7 @@ class DayScheduleServiceTests {
         DaySchedule second = schedule(11L, LocalTime.of(10, 0), true);
         second.setSpotNameSnapshot("  tokyo station  ");
 
-        when(planRepository.findByUserIdAndId(1L, 50L)).thenReturn(Optional.of(plan));
+        when(planAccessService.requireEditorOwnerId(1L, 50L)).thenReturn(1L);
         when(dayScheduleRepository.findAllByUserIdAndPlanDayPlanIdAndSpotUserIsNullOrderByPlanDayDayOrderAscScheduleOrderAsc(1L, 50L))
                 .thenReturn(List.of(first, second));
 
@@ -264,7 +278,7 @@ class DayScheduleServiceTests {
         second.setPlanDay(first.getPlanDay());
         second.setMovingDuration(20);
         second.setExtraMovingDuration(10);
-        when(planDayRepository.findByUserIdAndId(1L, 20L)).thenReturn(Optional.of(first.getPlanDay()));
+        when(planDayRepository.findById(20L)).thenReturn(Optional.of(first.getPlanDay()));
         when(dayScheduleRepository.findAllByUserIdAndPlanDayIdOrderByScheduleOrderAsc(1L, 20L))
                 .thenReturn(List.of(first, second));
 
@@ -287,12 +301,13 @@ class DayScheduleServiceTests {
 
         PlanDay targetDay = new PlanDay();
         targetDay.setId(30L);
+        targetDay.setUserId(1L);
         targetDay.setScheduleMode(ScheduleMode.DETAILED);
         DaySchedule targetExisting = schedule(12L, LocalTime.of(14, 0), true);
         targetExisting.setPlanDay(targetDay);
 
-        when(dayScheduleRepository.findByUserIdAndId(1L, 10L)).thenReturn(Optional.of(moving));
-        when(planDayRepository.findByUserIdAndId(1L, 30L)).thenReturn(Optional.of(targetDay));
+        when(dayScheduleRepository.findById(10L)).thenReturn(Optional.of(moving));
+        when(planDayRepository.findById(30L)).thenReturn(Optional.of(targetDay));
         when(dayScheduleRepository.findAllByUserIdAndPlanDayIdOrderByScheduleOrderAsc(1L, 20L))
                 .thenReturn(new ArrayList<>(List.of(moving, sourceRemaining)));
         when(dayScheduleRepository.findAllByUserIdAndPlanDayIdOrderByScheduleOrderAsc(1L, 30L))
@@ -319,10 +334,11 @@ class DayScheduleServiceTests {
 
         PlanDay targetDay = new PlanDay();
         targetDay.setId(30L);
+        targetDay.setUserId(1L);
         targetDay.setScheduleMode(ScheduleMode.DETAILED);
 
-        when(dayScheduleRepository.findByUserIdAndId(1L, 10L)).thenReturn(Optional.of(source));
-        when(planDayRepository.findByUserIdAndId(1L, 30L)).thenReturn(Optional.of(targetDay));
+        when(dayScheduleRepository.findById(10L)).thenReturn(Optional.of(source));
+        when(planDayRepository.findById(30L)).thenReturn(Optional.of(targetDay));
         when(dayScheduleRepository.findAllByUserIdAndPlanDayIdOrderByScheduleOrderAsc(1L, 20L))
                 .thenReturn(new ArrayList<>(List.of(source)));
         when(dayScheduleRepository.findAllByUserIdAndPlanDayIdOrderByScheduleOrderAsc(1L, 30L))
@@ -350,9 +366,11 @@ class DayScheduleServiceTests {
     private DaySchedule schedule(Long id, LocalTime startTime, boolean fixedStartTime) {
         PlanDay day = new PlanDay();
         day.setId(20L);
+        day.setUserId(1L);
 
         DaySchedule schedule = new DaySchedule();
         schedule.setId(id);
+        schedule.setVersion(0L);
         schedule.setUserId(1L);
         schedule.setPlanDay(day);
         schedule.setStartTime(startTime);
@@ -384,7 +402,8 @@ class DayScheduleServiceTests {
                 null,
                 null,
                 null,
-                null
+                null,
+                0L
         );
     }
 }

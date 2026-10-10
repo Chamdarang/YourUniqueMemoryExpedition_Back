@@ -2,6 +2,16 @@
 
 ## 로컬 실행 설정
 
+## Docker로 전체 실행
+
+백엔드 `.env`에 기존 MySQL 접속 계정과 JWT 키가 설정되어 있어야 합니다. 저장소 루트에서 아래 명령을 실행하면 프론트엔드, 백엔드, Redis가 시작되며 웹 앱은 `http://localhost:3000`에서 엽니다. 루트 `.env`는 사용하지 않습니다.
+
+```powershell
+docker compose --env-file YourUniqueMemoryExpedition_Front/.env up --build
+```
+
+백엔드 `.env`는 Compose가 컨테이너에 직접 전달합니다. MySQL은 별도로 실행 중이어야 하며 Docker Desktop에서 접속할 수 있도록 계정 권한을 설정해야 합니다. 백엔드는 시작할 때 미적용 Flyway 마이그레이션을 자동 적용하고, 로그인 제한 카운터는 Redis에 저장합니다.
+
 프로젝트 루트에 Git으로 추적되지 않는 `.env` 파일을 만들고 다음 값을 설정합니다.  
 `application.yml`에는 실제 비밀값 대신 환경변수 참조만 포함되어 있습니다.
 
@@ -13,6 +23,7 @@
 - 버스: Google 지도에서 확인 후 수동 입력
 
 ```text
+DB_HOST_URL=jdbc:mysql://localhost:3306/yume
 DB_HOST_USERNAME=your_database_username
 DB_HOST_PASSWORD=your_database_password
 JWT_SECRET_KEY=at_least_32_bytes_of_random_secret
@@ -23,8 +34,7 @@ GOOGLE_MAPS_ROUTES_API_KEY=your_server_routes_api_key
 NAVITIME_RAPID_API_KEY=your_rapidapi_key
 ```
 
-데이터베이스 주소가 기본값인 `jdbc:mysql://localhost:3306/yume`과 다르면
-`DB_HOST_URL`도 설정합니다.  
+Compose에서 기존 호스트 MySQL을 사용할 때는 `host.docker.internal:3306/yume`에 연결합니다. 로컬 프로세스로 백엔드를 실행할 때는 기본 주소가 `jdbc:mysql://localhost:3306/yume`입니다.  
 정적 지도 이미지에 별도 키를 사용할 경우 `GOOGLE_MAPS_API_KEY`를 추가할 수 있습니다.
 신규 가입을 막으려면 `AUTH_SIGNUP_ENABLED=false`로 설정합니다.
 `PLAN_SHARE_ENCRYPTION_KEY`는 JWT 키와 별도로 설정하고 배포·재시작 사이에 동일하게 유지합니다. 생략하면 `JWT_SECRET_KEY`를 사용합니다.

@@ -101,25 +101,25 @@ public class OnboardingSampleDataService {
 
         createPlanDay(userId, sampleTrip, 1, "[예시] 1일차 · 오사카", "간사이공항에서 오사카로 이동해 짐부터 맡기기. 오사카성 둘러보고 저녁에는 도톤보리에서 타코야키 먹기.", List.of(
                 Stop.place("kansai-airport", LocalTime.of(8, 30), 90, 0, null, null),
-                Stop.note("오사카 이동·짐 맡기기", SpotType.OTHER, LocalTime.of(11, 0), 60, 60, Transportation.TRAIN, "숙소에 짐을 맡기고 오사카성으로 이동."),
+                Stop.note("숙소에 짐 맡기고 오사카성으로 이동", SpotType.OTHER, LocalTime.of(11, 0), 60, 60, Transportation.TRAIN, "숙소에 짐을 맡긴 뒤 오사카성으로 이동."),
                 Stop.place("osaka-castle", LocalTime.of(13, 0), 120, 60, Transportation.TRAIN, null),
-                Stop.note("점심", SpotType.FOOD, LocalTime.of(15, 30), 60, 30, Transportation.WALK, "성 주변에서 점심 먹기."),
+                Stop.note("오사카성 주변에서 점심 식사", SpotType.FOOD, LocalTime.of(15, 30), 60, 30, Transportation.WALK, "성 주변에서 점심 먹기."),
                 Stop.place("dotonbori", LocalTime.of(17, 15), 150, 45, Transportation.TRAIN, "저녁 식사와 강변 산책.")
         ), userSpots);
 
         createPlanDay(userId, sampleTrip, 2, "[예시] 2일차 · 교토", "후시미이나리는 오전에 먼저 보고 기요미즈데라 쪽으로 이동. 히가시야마 골목을 걷다가 기온에서 저녁 먹기.", List.of(
-                Stop.note("오사카에서 교토로 이동", SpotType.STATION, LocalTime.of(7, 0), 60, 0, Transportation.TRAIN, "아침에 오사카를 출발해 후시미이나리로 이동."),
+                Stop.note("오사카 출발 후 후시미이나리로 이동", SpotType.STATION, LocalTime.of(7, 0), 60, 0, Transportation.TRAIN, "아침에 오사카를 출발해 후시미이나리로 이동."),
                 Stop.place("fushimi-inari", LocalTime.of(8, 30), 105, 30, Transportation.TRAIN, null),
-                Stop.note("교토에서 점심", SpotType.FOOD, LocalTime.of(11, 15), 60, 60, Transportation.TRAIN, "기요미즈데라로 이동하기 전에 점심."),
+                Stop.note("기요미즈데라로 이동 전 점심 식사", SpotType.FOOD, LocalTime.of(11, 15), 60, 60, Transportation.TRAIN, "기요미즈데라로 이동하기 전에 점심."),
                 Stop.place("kiyomizu-dera", LocalTime.of(12, 45), 120, 30, Transportation.BUS, "산넨자카·니넨자카 골목으로 이어가기."),
                 Stop.place("gion", LocalTime.of(15, 30), 120, 45, Transportation.WALK, "기온을 걷고 저녁 식사 후 오사카로 돌아가기.")
         ), userSpots);
 
         createPlanDay(userId, sampleTrip, 3, "[예시] 3일차 · 나라·우메다에서 귀국", "체크아웃 후 숙소에 짐 맡기고 나라로 이동. 나라공원과 도다이지를 보고 오사카로 돌아와 짐을 찾은 뒤 우메다에서 쇼핑 조금. 비행기 시간이 빠르면 우메다를 줄이고 공항으로 바로 가기.", List.of(
-                Stop.note("체크아웃·짐 맡기기", SpotType.OTHER, LocalTime.of(7, 0), 30, 0, null, "가벼운 짐만 챙겨 나라로 출발."),
+                Stop.note("체크아웃 후 짐 맡기고 나라로 출발", SpotType.OTHER, LocalTime.of(7, 0), 30, 0, null, "가벼운 짐만 챙겨 나라로 출발."),
                 Stop.place("nara-park", LocalTime.of(8, 30), 90, 60, Transportation.TRAIN, null),
                 Stop.place("todaiji", LocalTime.of(10, 15), 120, 15, Transportation.WALK, "대불전과 난다이몬 둘러보기."),
-                Stop.note("나라에서 점심", SpotType.FOOD, LocalTime.of(12, 30), 60, 15, Transportation.WALK, "점심 후 우메다로 이동."),
+                Stop.note("나라 시내에서 점심 식사", SpotType.FOOD, LocalTime.of(12, 30), 60, 15, Transportation.WALK, "점심 후 우메다로 이동."),
                 Stop.place("umeda", LocalTime.of(14, 30), 90, 60, Transportation.TRAIN, "숙소에서 짐을 찾아 쇼핑 시간을 짧게 잡고 공항 이동 시간을 먼저 확보."),
                 Stop.place("kansai-airport", LocalTime.of(17, 15), 120, 75, Transportation.TRAIN, "체크인과 출국 수속 후 저녁 비행기로 귀국.")
         ), userSpots);
@@ -127,7 +127,7 @@ public class OnboardingSampleDataService {
         createIndependentDay(userId, "[예시] 아라시야마 하루", "아침에 아라시야마로 가서 대나무숲부터 걷기. 텐류지 정원 보고 근처에서 점심 먹은 다음, 도게츠교까지 천천히 둘러보기.", List.of(
                 Stop.place("arashiyama-bamboo", LocalTime.of(9, 0), 90, 0, null, null),
                 Stop.place("tenryu-ji", LocalTime.of(10, 45), 90, 15, Transportation.WALK, "정원과 아라시야마 풍경 보기."),
-                Stop.note("아라시야마에서 점심", SpotType.FOOD, LocalTime.of(12, 45), 60, 30, Transportation.WALK, "역 주변이나 강변에서 점심."),
+                Stop.note("아라시야마 역 주변에서 점심 식사", SpotType.FOOD, LocalTime.of(12, 45), 60, 30, Transportation.WALK, "역 주변이나 강변에서 점심."),
                 Stop.place("togetsukyo", LocalTime.of(14, 0), 60, 15, Transportation.WALK, "다리와 강변 산책 후 오사카로 돌아가기.")
         ), userSpots);
 
@@ -135,7 +135,7 @@ public class OnboardingSampleDataService {
                 Stop.place("ginkaku-ji", LocalTime.of(8, 30), 60, 0, null, null),
                 Stop.place("philosophers-path", LocalTime.of(9, 45), 60, 15, Transportation.WALK, "운하를 따라 난젠지 방향으로 걷기."),
                 Stop.place("nanzen-ji", LocalTime.of(11, 0), 75, 15, Transportation.WALK, "수로각과 경내를 둘러보기."),
-                Stop.note("난젠지 근처에서 점심", SpotType.FOOD, LocalTime.of(12, 30), 60, 15, Transportation.WALK, "점심 후 아라시야마로 이동."),
+                Stop.note("난젠지 주변에서 점심 식사", SpotType.FOOD, LocalTime.of(12, 30), 60, 15, Transportation.WALK, "점심 후 아라시야마로 이동."),
                 Stop.place("arashiyama-bamboo", LocalTime.of(14, 0), 75, 60, Transportation.TRAIN, "도착 시간에 맞춰 대나무숲 산책."),
                 Stop.place("togetsukyo", LocalTime.of(15, 30), 60, 15, Transportation.WALK, "시간이 남으면 강변에서 쉬었다가 오사카로 돌아가기.")
         ), userSpots);
@@ -259,7 +259,9 @@ public class OnboardingSampleDataService {
             schedule.setPlanDay(day);
             schedule.setScheduleOrder(order);
             schedule.setSpotUser(spotUser);
-            schedule.setSpotNameSnapshot(spotUser == null ? seed.name() : spotUser.getCustomName());
+            schedule.setSpotNameSnapshot(seed.placeKey() == null
+                    ? exampleTitle(seed.name())
+                    : spotUser == null ? seed.name() : spotUser.getCustomName());
             schedule.setSpotTypeSnapshot(spotUser == null ? seed.type() : spotUser.getSpotType());
             if (spotUser != null && spotUser.getSpot().getLocation() != null) {
                 schedule.setSpotLocationSnapshot((Point) spotUser.getSpot().getLocation().copy());
@@ -281,6 +283,13 @@ public class OnboardingSampleDataService {
 
     private record PlaceSeed(String key, String googlePlaceId, String name, SpotType type, String address,
                              double lat, double lng, String note) { }
+
+    private String exampleTitle(String title) {
+        if (title == null || title.isBlank() || title.startsWith("[예시]")) {
+            return title;
+        }
+        return "[예시] " + title;
+    }
 
     private record Stop(String placeKey, String name, SpotType type, LocalTime startTime,
                         int duration, int movingDuration, Transportation transportation, String memo) {

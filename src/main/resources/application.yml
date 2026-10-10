@@ -3,6 +3,10 @@ spring:
     name: yume
   config:
     import: optional:file:.env[.properties],optional:file:back/.env[.properties]
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
   datasource:
     url: ${DB_HOST_URL:jdbc:mysql://localhost:3306/yume}
     username: ${DB_HOST_USERNAME}
@@ -39,6 +43,8 @@ navitime:
 
 auth:
   signup-enabled: ${AUTH_SIGNUP_ENABLED:true}
+  rate-limit:
+    redis-key-prefix: ${AUTH_RATE_LIMIT_REDIS_KEY_PREFIX:yume:auth:}
 
 plan-share:
   encryption-key: ${PLAN_SHARE_ENCRYPTION_KEY:${JWT_SECRET_KEY:}}

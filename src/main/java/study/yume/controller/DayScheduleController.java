@@ -106,12 +106,4 @@ public class DayScheduleController {
         return ResponseEntity.ok(ApiResponse.success(dayScheduleService.linkSchedulesToSpot(user.getId(), planId, req)));
     }
 
-    //    @PutMapping("/day/{dayId}/sync")
-    //    public ResponseEntity<ApiResponse<List<DayScheduleResponse>>> syncSchedules(
-    //            @AuthenticationPrincipal CustomUserDetails user,
-    //            @PathVariable Long dayId,
-    //            @RequestBody ScheduleSyncRequest req) {
-    //        return ResponseEntity.ok(ApiResponse.success(dayScheduleService.syncSchedules(user.getId(), dayId, req)));
-    //    }
-
 }

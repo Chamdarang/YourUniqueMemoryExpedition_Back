@@ -35,13 +35,6 @@ public class PlanController {
     private final PlanTransferService planTransferService;
     private final GeneralPlanImportService generalPlanImportService;
 
-    @GetMapping("/FORTEST/GETALLPLANS")
-    public ResponseEntity<ApiResponse<Page<PlanResponse>>> getPlans(
-            @AuthenticationPrincipal CustomUserDetails user,
-            @PageableDefault(sort = "createdAt",direction = Sort.Direction.DESC) Pageable pageable) {
-        return ResponseEntity.ok(ApiResponse.success(planService.getAllPlans(user.getId(),pageable)));
-    }
-
     @GetMapping
     public ResponseEntity<ApiResponse<Page<PlanResponse>>> getFilteredPlans(
             @AuthenticationPrincipal CustomUserDetails user,

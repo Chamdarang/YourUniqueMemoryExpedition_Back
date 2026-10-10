@@ -65,42 +65,6 @@ public class DayScheduleService {
         );
     }
 
-//    public List<DayScheduleResponse> syncSchedules(Long userId, Long dayId, ScheduleSyncRequest req) {
-//        PlanDay planDay = findDayByUserIdAndId(userId, dayId);
-//
-//        dayScheduleRepository.deleteAllByUserIdAndPlanDayId(userId, dayId);
-//
-//        List<DaySchedule> newSchedules = req.schedules().stream()
-//                .map(item->{
-//                    DaySchedule s = new DaySchedule();
-//                    Point point = geometryFactory.createPoint(new Coordinate(item.lng(),item.lat()));
-//                    s.setUserId(userId);
-//                    s.setPlanDay(planDay);
-//                    s.setScheduleOrder(item.scheduleOrder());
-//                    s.setSpotUser(spotUserRepository.findByUserIdAndId(userId, item.spotUserId()).orElse(null));
-//                    s.setSpotNameSnapshot(item.spotName());
-//                    s.setSpotLocationSnapshot(point);
-//                    s.setSpotTypeSnapshot(item.spotType());
-//                    s.setIsChecked(item.isChecked());
-//                    s.setStartTime(item.startTime());
-//                    s.setDuration(item.duration());
-//                    s.setEndTime(item.endTime());
-//                    s.setMovingDuration(item.movingDuration());
-//                    s.setExtraDuration(item.extraDuration());
-//                    s.setExtraMovingDuration(item.extraMovingDuration());
-//                    s.setTransportation(item.transportation());
-//                    s.setMemo(item.memo());
-//                    s.setMovingMemo(item.movingMemo());
-//
-//                    return s;
-//                })
-//                .toList();
-//
-//        return dayScheduleRepository.saveAll(newSchedules).stream()
-//                .map(DayScheduleResponse::toDto)
-//                .toList();
-//    }
-
     public List<DayScheduleResponse> createSchedule(Long userId, Long dayId, ScheduleCreateRequest req) {
         PlanDay planDay = findDayByUserIdAndId(userId, dayId);
         Long dataOwnerId = planDay.getUserId();

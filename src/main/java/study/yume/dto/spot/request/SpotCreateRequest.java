@@ -7,6 +7,7 @@ import java.util.Map;
 public record SpotCreateRequest(
         String placeId,
         String spotName,
+        String customName,
         SpotType spotType,
         String address,
         String shortAddress,
@@ -16,6 +17,7 @@ public record SpotCreateRequest(
         Double lng,
         Boolean isVisit,
         String description,
-        Map<String, Object> metadata
+        Map<String, Object> metadata,
+        Map<String, Object> userMetadata
 ) {
 }

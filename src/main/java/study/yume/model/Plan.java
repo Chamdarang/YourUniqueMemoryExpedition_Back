@@ -35,4 +35,8 @@ public class Plan extends BaseTimeEntity{
     @OneToMany(mappedBy = "plan", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("dayOrder ASC")
     private List<PlanDay> planDaysList = new ArrayList<>();
+
+    @OneToMany(mappedBy = "plan", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("startDate ASC, startTime ASC, id ASC")
+    private List<PlanReservation> reservations = new ArrayList<>();
 }

@@ -14,6 +14,8 @@ import java.util.Optional;
 public interface PlanDayRepository extends JpaRepository<PlanDay, Long> {
     Boolean existsByUserIdAndPlanIdAndDayOrder(Long userId,Long planId, Integer dayOrder);
     Optional<PlanDay> findByUserIdAndId(Long userId, Long id);
+    Optional<PlanDay> findByIdAndPlanId(Long id, Long planId);
+    Optional<PlanDay> findByUserIdAndPlanIdAndDayOrder(Long userId, Long planId, Integer dayOrder);
     @EntityGraph(attributePaths = "plan")
     Optional<PlanDay> findOneByUserIdAndId(Long userId, Long id);
     Page<PlanDay> findAllByUserIdAndPlanIsNull(Long userId, Pageable pageable);

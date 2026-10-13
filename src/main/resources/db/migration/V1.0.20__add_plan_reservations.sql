@@ -1,0 +1,23 @@
+CREATE TABLE plan_reservation (
+    id                  BIGINT PRIMARY KEY AUTO_INCREMENT,
+    plan_id             BIGINT NOT NULL,
+    type                VARCHAR(30) NOT NULL,
+    title               VARCHAR(200) NOT NULL,
+    status              VARCHAR(20) NOT NULL DEFAULT 'RESERVED',
+    provider            VARCHAR(200) NULL,
+    confirmation_code   VARCHAR(120) NULL,
+    start_date          DATE NULL,
+    end_date            DATE NULL,
+    start_time          TIME NULL,
+    end_time            TIME NULL,
+    booking_url         VARCHAR(1000) NULL,
+    address             VARCHAR(500) NULL,
+    memo                VARCHAR(2000) NULL,
+    plan_day_id         BIGINT NULL,
+    created_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_plan_reservation_plan_date (plan_id, start_date, start_time),
+    INDEX idx_plan_reservation_plan_day (plan_day_id),
+    CONSTRAINT fk_plan_reservation_plan FOREIGN KEY (plan_id) REFERENCES plan(id) ON DELETE CASCADE,
+    CONSTRAINT fk_plan_reservation_plan_day FOREIGN KEY (plan_day_id) REFERENCES plan_day(id) ON DELETE SET NULL
+);

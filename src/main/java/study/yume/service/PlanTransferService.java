@@ -12,17 +12,21 @@ import study.yume.dto.plan.transfer.PlanTransferDto;
 import study.yume.model.DaySchedule;
 import study.yume.model.Plan;
 import study.yume.model.PlanDay;
+import study.yume.model.PlanReservation;
 import study.yume.model.SpotUser;
 import study.yume.model.ScheduleVisitStatus;
 import study.yume.model.enums.ScheduleMode;
 import study.yume.repository.DayScheduleRepository;
 import study.yume.repository.PlanDayRepository;
 import study.yume.repository.PlanRepository;
+import study.yume.repository.PlanReservationRepository;
 import study.yume.repository.SpotUserRepository;
 import study.yume.repository.ScheduleVisitStatusRepository;
 
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
@@ -36,6 +40,7 @@ public class PlanTransferService {
     private static final int FORMAT_VERSION = 1;
 
     private final PlanRepository planRepository;
+    private final PlanReservationRepository reservationRepository;
     private final PlanDayRepository planDayRepository;
     private final DayScheduleRepository dayScheduleRepository;
     private final SpotUserRepository spotUserRepository;
@@ -83,6 +88,19 @@ public class PlanTransferService {
                 })
                 .toList();
 
+        List<PlanTransferDto.Reservation> reservations = reservationRepository
+                .findAllByPlanIdOrderByStartDateAscStartTimeAscIdAsc(planId)
+                .stream()
+                .map(item -> new PlanTransferDto.Reservation(
+                        item.getType(), item.getTitle(), item.getStatus(), item.getProvider(),
+                        item.getConfirmationCode(), item.getStartDate(), item.getEndDate(),
+                        item.getStartTime(), item.getEndTime(), item.getBookingUrl(), item.getAddress(),
+                        item.getMemo(), item.getPlanDay() != null && item.getPlanDay().getPlan() != null
+                                && item.getPlanDay().getPlan().getId().equals(planId)
+                                ? item.getPlanDay().getDayOrder() : null
+                ))
+                .toList();
+
         return new PlanTransferDto(
                 FORMAT_VERSION,
                 plan.getPlanName(),
@@ -90,7 +108,8 @@ public class PlanTransferService {
                 plan.getPlanEndDate(),
                 plan.getPlanDays(),
                 plan.getPlanMemo(),
-                days
+                days,
+                reservations
         );
     }
 
@@ -104,6 +123,10 @@ public class PlanTransferService {
                     .toList();
 
         Integer planDays = resolvePlanDays(transfer, days);
+        if (transfer.reservations() != null && planDays != null && transfer.reservations().stream()
+                .anyMatch(reservation -> reservation.dayOrder() != null && reservation.dayOrder() > planDays)) {
+            throw new IllegalArgumentException("예약에 연결된 일차가 여행 기간에 포함되지 않습니다.");
+        }
         LocalDate startDate = transfer.planStartDate();
         LocalDate endDate = transfer.planEndDate();
         if (startDate != null && endDate == null && planDays != null) {
@@ -151,6 +174,31 @@ public class PlanTransferService {
                     status.setSkipped(Boolean.TRUE.equals(schedules.get(index).isSkipped()));
                     scheduleVisitStatusRepository.save(status);
                 }
+            }
+        }
+
+        if (transfer.reservations() != null) {
+            for (PlanTransferDto.Reservation imported : transfer.reservations()) {
+                PlanReservation reservation = new PlanReservation();
+                reservation.setPlan(plan);
+                reservation.setType(imported.type());
+                reservation.setTitle(imported.title().trim());
+                reservation.setStatus(imported.status() == null
+                        ? study.yume.model.enums.PlanReservationStatus.RESERVED : imported.status());
+                reservation.setProvider(imported.provider());
+                reservation.setConfirmationCode(imported.confirmationCode());
+                reservation.setStartDate(imported.startDate());
+                reservation.setEndDate(imported.endDate());
+                reservation.setStartTime(imported.startTime());
+                reservation.setEndTime(imported.endTime());
+                reservation.setBookingUrl(imported.bookingUrl());
+                reservation.setAddress(imported.address());
+                reservation.setMemo(imported.memo());
+                if (imported.dayOrder() != null) {
+                    reservation.setPlanDay(planDayRepository.findByUserIdAndPlanIdAndDayOrder(userId, plan.getId(), imported.dayOrder())
+                            .orElse(null));
+                }
+                reservationRepository.save(reservation);
             }
         }
 
@@ -239,6 +287,27 @@ public class PlanTransferService {
         requireText(transfer.planName(), 200, "계획 이름");
         requireMaxLength(transfer.planMemo(), 500, "계획 메모");
 
+        if (transfer.reservations() != null) {
+            for (PlanTransferDto.Reservation reservation : transfer.reservations()) {
+                if (reservation.type() == null) throw new IllegalArgumentException("예약 종류를 선택해 주세요.");
+                requireText(reservation.title(), 200, "예약 이름");
+                if (reservation.endDate() != null && reservation.startDate() != null
+                        && reservation.endDate().isBefore(reservation.startDate())) {
+                    throw new IllegalArgumentException("예약 이용 종료일은 시작일보다 빠를 수 없습니다.");
+                }
+                requireMaxLength(reservation.provider(), 200, "업체명");
+                requireMaxLength(reservation.confirmationCode(), 120, "예약번호");
+                requireMaxLength(reservation.bookingUrl(), 1000, "예약 링크");
+                validateReservationUrl(reservation.bookingUrl());
+                requireMaxLength(reservation.address(), 500, "주소");
+                requireMaxLength(reservation.memo(), 2000, "예약 메모");
+                if (reservation.dayOrder() != null && (reservation.dayOrder() < 1
+                        || (transfer.planDays() != null && reservation.dayOrder() > transfer.planDays()))) {
+                    throw new IllegalArgumentException("예약에 연결된 일차가 여행 기간에 포함되지 않습니다.");
+                }
+            }
+        }
+
         if (transfer.planStartDate() != null && transfer.planEndDate() != null) {
             if (transfer.planStartDate().isAfter(transfer.planEndDate())) {
                 throw new IllegalArgumentException("계획 시작일은 종료일보다 늦을 수 없습니다.");
@@ -319,6 +388,19 @@ public class PlanTransferService {
             throw new IllegalArgumentException(fieldName + "이(가) 필요합니다.");
         }
         requireMaxLength(value, maxLength, fieldName);
+    }
+
+    private void validateReservationUrl(String value) {
+        if (value == null || value.isBlank()) return;
+        try {
+            URI uri = new URI(value.trim());
+            if (!uri.isAbsolute() || uri.getHost() == null
+                    || !("http".equalsIgnoreCase(uri.getScheme()) || "https".equalsIgnoreCase(uri.getScheme()))) {
+                throw new IllegalArgumentException("예약 링크는 http 또는 https 주소여야 합니다.");
+            }
+        } catch (URISyntaxException error) {
+            throw new IllegalArgumentException("예약 링크 형식이 올바르지 않습니다.");
+        }
     }
 
     private void requireMaxLength(String value, int maxLength, String fieldName) {

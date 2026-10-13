@@ -144,7 +144,8 @@ public class GeneralPlanImportPreviewBuilder {
                 resolvedStartDate.plusDays(days.size() - 1L),
                 days.size(),
                 "범용 파일 Import: " + safeFileName(file.getOriginalFilename()),
-                days
+                days,
+                List.of()
         );
         return new PlanImportPreviewResponse(
                 plan,

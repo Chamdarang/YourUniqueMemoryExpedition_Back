@@ -19,7 +19,7 @@ import java.util.concurrent.ConcurrentMap;
 @Service
 @RequiredArgsConstructor
 public class PlanLiveUpdateService {
-    private static final long STREAM_TIMEOUT_MILLIS = 0L;
+    private static final long STREAM_TIMEOUT_MILLIS = 5 * 60 * 1000L;
 
     private final PlanAccessService planAccessService;
     private final PlanShareRepository planShareRepository;
@@ -45,7 +45,11 @@ public class PlanLiveUpdateService {
     }
 
     private void register(Long planId, String subscriptionId, Subscription subscription, SseEmitter emitter) {
-        subscriptions.computeIfAbsent(planId, ignored -> new ConcurrentHashMap<>()).put(subscriptionId, subscription);
+        subscriptions.compute(planId, (ignored, existing) -> {
+            ConcurrentMap<String, Subscription> planSubscriptions = existing == null ? new ConcurrentHashMap<>() : existing;
+            planSubscriptions.put(subscriptionId, subscription);
+            return planSubscriptions;
+        });
 
         Runnable cleanup = () -> removeSubscription(planId, subscriptionId);
         emitter.onCompletion(cleanup);
@@ -57,7 +61,7 @@ public class PlanLiveUpdateService {
 
         try {
             emitter.send(SseEmitter.event().name("ready").data(Map.of("planId", planId)));
-        } catch (IOException error) {
+        } catch (IOException | IllegalStateException error) {
             cleanup.run();
             emitter.completeWithError(error);
         }
@@ -100,27 +104,33 @@ public class PlanLiveUpdateService {
         ConcurrentMap<String, Subscription> planSubscriptions = subscriptions.get(planId);
         if (planSubscriptions == null) return;
         planSubscriptions.forEach((subscriptionId, subscription) -> {
-            if (subscription.userId() != null && subscription.userId().equals(userId)
-                    && planSubscriptions.remove(subscriptionId, subscription)) {
-                subscription.emitter().complete();
+            if (subscription.userId() != null && subscription.userId().equals(userId)) {
+                closeSubscription(planId, subscriptionId, subscription);
             }
         });
-        if (planSubscriptions.isEmpty()) subscriptions.remove(planId, planSubscriptions);
     }
 
-    @Scheduled(fixedRate = 20000)
+    @Scheduled(fixedDelay = 20000, scheduler = "planLiveUpdateHeartbeatScheduler")
     public void sendHeartbeats() {
         subscriptions.forEach((planId, planSubscriptions) -> planSubscriptions.forEach((subscriptionId, subscription) -> {
             try {
-                authorizeSubscription(planId, subscription);
+                // Detect disconnected clients even while DB permission checks are waiting.
                 subscription.emitter().send(SseEmitter.event().comment("keep-alive"));
             } catch (Exception error) {
-                if (planSubscriptions.remove(subscriptionId, subscription)) {
-                    subscription.emitter().complete();
-                }
+                closeSubscription(planId, subscriptionId, subscription);
             }
         }));
-        subscriptions.entrySet().removeIf(entry -> entry.getValue().isEmpty());
+    }
+
+    @Scheduled(fixedDelay = 20000, scheduler = "planLiveUpdateAuthorizationScheduler")
+    public void revalidateSubscriptions() {
+        subscriptions.forEach((planId, planSubscriptions) -> planSubscriptions.forEach((subscriptionId, subscription) -> {
+            try {
+                authorizeSubscription(planId, subscription);
+            } catch (Exception error) {
+                closeSubscription(planId, subscriptionId, subscription);
+            }
+        }));
     }
 
     private void publish(Long planId, Long actorId) {
@@ -136,19 +146,21 @@ public class PlanLiveUpdateService {
                 authorizeSubscription(planId, subscription);
                 subscription.emitter().send(SseEmitter.event().name("plan-updated").data(payload));
             } catch (Exception error) {
-                if (planSubscriptions.remove(subscriptionId, subscription)) {
-                    subscription.emitter().complete();
-                }
+                closeSubscription(planId, subscriptionId, subscription);
             }
         });
-        if (planSubscriptions.isEmpty()) subscriptions.remove(planId, planSubscriptions);
     }
 
     private void removeSubscription(Long planId, String subscriptionId) {
-        ConcurrentMap<String, Subscription> planSubscriptions = subscriptions.get(planId);
-        if (planSubscriptions == null) return;
-        planSubscriptions.remove(subscriptionId);
-        if (planSubscriptions.isEmpty()) subscriptions.remove(planId, planSubscriptions);
+        subscriptions.computeIfPresent(planId, (ignored, planSubscriptions) -> {
+            planSubscriptions.remove(subscriptionId);
+            return planSubscriptions.isEmpty() ? null : planSubscriptions;
+        });
+    }
+
+    private void closeSubscription(Long planId, String subscriptionId, Subscription subscription) {
+        removeSubscription(planId, subscriptionId);
+        subscription.emitter().complete();
     }
 
     private void authorizeSubscription(Long planId, Subscription subscription) {

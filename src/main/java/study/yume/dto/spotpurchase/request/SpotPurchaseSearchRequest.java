@@ -7,5 +7,6 @@ public record SpotPurchaseSearchRequest(
         String keyword,
         PurchaseKind kind,
         PurchaseStatus status,
-        String category
+        String category,
+        Boolean unbound
 ) {}

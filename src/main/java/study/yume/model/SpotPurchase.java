@@ -48,7 +48,13 @@ public class SpotPurchase extends BaseTimeEntity {
 
     private LocalDate acquiredDate;
 
-    @Column(length = 500)
+    private String receivedPlaceName;
+    private Long goshuinBookId;
+    private Integer goshuinOrder;
+    private String photoId;
+    private long recordVersion;
+
+    @Column(length = 2000)
     private String note;
 
 }

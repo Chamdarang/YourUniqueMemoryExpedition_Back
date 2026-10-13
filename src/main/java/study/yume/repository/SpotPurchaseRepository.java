@@ -23,15 +23,17 @@ public interface SpotPurchaseRepository extends JpaRepository<SpotPurchase, Long
             "AND (:kind IS NULL OR sp.kind = :kind) " +
             "AND (:status IS NULL OR sp.status = :status) " +
             "AND (:category IS NULL OR sp.category = :category) " +
+            "AND (:unbound = false OR (sp.kind = study.yume.model.enums.PurchaseKind.GOSHUIN AND sp.goshuinBookId IS NULL)) " +
             "AND (:keyword IS NULL OR :keyword = '' OR " +
             "    (sp.itemName LIKE CONCAT('%', :keyword, '%') OR " +
-            "     sp.note LIKE CONCAT('%', :keyword, '%')))")
+            "     sp.note LIKE CONCAT('%', :keyword, '%') OR sp.receivedPlaceName LIKE CONCAT('%', :keyword, '%')))")
     Page<SpotPurchase> searchPurchases(
             @Param("userId") Long userId,
             @Param("keyword") String keyword,
             @Param("kind") PurchaseKind kind,
             @Param("status") PurchaseStatus status,
             @Param("category") String category,
+            @Param("unbound") boolean unbound,
             Pageable pageable);
 
 }

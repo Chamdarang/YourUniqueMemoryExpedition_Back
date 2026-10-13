@@ -43,6 +43,11 @@ Compose에서 기존 호스트 MySQL을 사용할 때는 `host.docker.internal:3
 
 ## 운영 확인
 
+- `PlanLiveUpdateConfig`는 `/api/plans/*/events`, `/api/public/plans/share/events`에서만 Open EntityManager in View를 제외합니다. SSE를 유지하는 동안 DB 연결을 점유하지 않으며 일반 API의 기존 동작은 유지합니다.
+- 연결 확인 heartbeat와 권한 재검사는 각각 별도 스케줄러에서 20초 간격으로 실행합니다. heartbeat에는 DB 조회가 없고, 권한 검사는 구독 시작·변경 알림 전·주기적 재검사 때 수행합니다. 서버 스트림은 5분 뒤 종료되고 프론트엔드가 재연결합니다.
+- `./gradlew test --tests study.yume.config.PlanLiveUpdateConnectionTests`는 격리된 H2 DB에서 풀 2개로 인증/공개 SSE 12개를 유지하고, DB 연결 반환·일반 API의 OSIV 유지·클라이언트 종료·권한 만료·권한 조회 지연 중 heartbeat 동작을 검증합니다. 실제 MySQL이나 테스트 계정 데이터를 변경하지 않습니다.
+- 실행 중인 로컬 서버에서는 `node scripts/verify-sse-connections.mjs`로 `test` / `test` 계정의 기존 여행에 SSE 12개를 35초 유지하며 일반 조회 20회와 DB 상태를 확인할 수 있습니다. 테스트 연결은 종료 시 모두 끊고 계정·여행 데이터는 변경하지 않습니다. 기본 API 주소는 `http://127.0.0.1:8080`이며 `YUME_API_BASE_URL`로 다른 로컬 포트를 지정할 수 있습니다.
+
 - 상태 확인: `GET /actuator/health`
 - 모든 API 응답에는 `X-Request-ID` 헤더가 포함됩니다.
 - 오류 화면에 표시되는 요청 ID로 백엔드 로그를 검색할 수 있습니다.
@@ -85,3 +90,12 @@ Spring Boot의 기술적 역량을 깊이 있게 다지는 것을 목표로 했�
 2. 일정 불러오기 개선
   현재는 서비스 자체의 일정을 export한 json과 개인적으로 사용하던 양식의 엑셀파일만 import 되는데  
   다양한 양식도 '계획'이기만 하다면 가져올 수 있도록 대응범위를 넓힐 생각임
+# 고슈인 사진 저장
+
+- 개발 기본값은 `COLLECTION_PHOTO_PROVIDER=local`, `COLLECTION_PHOTO_DIRECTORY=./uploads/collection`입니다. Compose에서는 전용 영속 볼륨을 사용합니다.
+- 운영은 `SPRING_PROFILES_ACTIVE=prod`로 S3 저장을 사용합니다. `COLLECTION_PHOTO_S3_BUCKET`, `AWS_REGION`과 AWS SDK 기본 자격 증명 체인에서 읽을 IAM 역할/자격 증명을 설정하세요. 버킷 미설정 시 운영 서버 시작을 거부합니다.
+- 사진은 본인 인증 API로 제공하며 버킷 공개 접근을 요구하지 않습니다. 업로드 10MB/2,500만 화소 이하의 정지 JPEG·PNG·WebP를 지원합니다. 고슈인/첩 표지 각각 선택 1장과 480px 썸네일을 보관합니다.
+- 삭제 파일은 60초 주기로 정리하며 실패한 파일은 5분 후 재시도합니다. 미연결 임시 업로드는 24시간 후 정리합니다. 버킷 버전 관리를 사용한다면 이전 버전 만료 정책도 설정하세요.
+- 저장소 설정을 바꿀 때 기존 원본·썸네일을 함께 이관해야 합니다. 자동 이관은 제공하지 않습니다.
+- 운영 실접속 검증은 운영 버킷·권한 설정 후 별도로 진행해야 합니다. 이번 개발 검증은 로컬 저장소를 사용했습니다.
+- 참고: [AWS Java SDK S3](https://docs.aws.amazon.com/sdk-for-java/latest/developer-guide/migration-s3-client.html), [TwelveMonkeys ImageIO](https://github.com/haraldk/TwelveMonkeys), [metadata-extractor](https://github.com/drewnoakes/metadata-extractor).

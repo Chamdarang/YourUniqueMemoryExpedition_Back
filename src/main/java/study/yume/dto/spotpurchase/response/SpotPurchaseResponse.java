@@ -19,13 +19,18 @@ public record SpotPurchaseResponse (
     BigDecimal price,
     String currency,
     LocalDate acquiredDate,
-    String note
+    String note,
+    Long goshuinBookId,
+    Integer goshuinOrder,
+    String photoId,
+    long recordVersion
 ){
     public static SpotPurchaseResponse toDto(SpotPurchase spotPurchase) {
         return new SpotPurchaseResponse(
                 spotPurchase.getId(),
                 spotPurchase.getSpotUser() != null ? spotPurchase.getSpotUser().getId(): 0,
-                spotPurchase.getSpotUser() != null ? spotPurchase.getSpotUser().getCustomName() : "",
+                spotPurchase.getReceivedPlaceName() != null ? spotPurchase.getReceivedPlaceName() :
+                    spotPurchase.getSpotUser() != null ? spotPurchase.getSpotUser().getCustomName() : "",
                 spotPurchase.getKind(),
                 spotPurchase.getCategory(),
                 spotPurchase.getItemName(),
@@ -34,7 +39,11 @@ public record SpotPurchaseResponse (
                 spotPurchase.getPrice(),
                 spotPurchase.getCurrency(),
                 spotPurchase.getAcquiredDate(),
-                spotPurchase.getNote()
+                spotPurchase.getNote(),
+                spotPurchase.getGoshuinBookId(),
+                spotPurchase.getGoshuinOrder(),
+                spotPurchase.getPhotoId(),
+                spotPurchase.getRecordVersion()
         );
     }
 }

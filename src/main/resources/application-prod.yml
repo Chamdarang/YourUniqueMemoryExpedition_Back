@@ -1,0 +1,3 @@
+collection:
+  photos:
+    provider: s3

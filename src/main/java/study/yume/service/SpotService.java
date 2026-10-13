@@ -30,6 +30,7 @@ public class SpotService {
     private final SpotRepository spotRepository;
     private final SpotUserRepository spotUserRepository;
     private final DayScheduleService dayScheduleService;
+    private final GoshuinService goshuinService;
 
     private final GeometryFactory geometryFactory = new GeometryFactory(new PrecisionModel(), 4326);
 
@@ -82,7 +83,7 @@ public class SpotService {
             Point center = geometryFactory.createPoint(new Coordinate(req.lng(), req.lat()));
             spotUserPage = spotUserRepository.findWithLocation(userId, req.isVisit(), req.spotType(), center, req.radius(), pageable);
         } else {
-            spotUserPage = spotUserRepository.searchMySpotUsers(userId, req.keyword(), req.spotType(), req.isVisit(), pageable);
+            spotUserPage = spotUserRepository.searchMySpotUsers(userId, req.keyword(), req.spotType(), req.isVisit(), req.groupId(), Boolean.TRUE.equals(req.ungrouped()), pageable);
         }
 
         return spotUserPage.map(spotUser -> SpotResponse.toDto(spotUser.getSpot(), spotUser));
@@ -115,6 +116,7 @@ public class SpotService {
         if (!usage.isEmpty()) {
             throw new SpotInUseException(usage);
         }
+        goshuinService.detachSpot(userId, spotUserId);
         spotUserRepository.delete(spotUser);
     }
 

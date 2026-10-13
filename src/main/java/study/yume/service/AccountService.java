@@ -19,6 +19,7 @@ public class AccountService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JdbcTemplate jdbcTemplate;
+    private final GoshuinService goshuinService;
 
     @Transactional(readOnly = true)
     public AccountProfileResponse getProfile(Long userId) {
@@ -65,6 +66,7 @@ public class AccountService {
         }
         User user = getUser(userId);
         verifyPassword(user, request.password());
+        goshuinService.clearAccount(userId);
 
         // Preserve copied schedule snapshots owned by other accounts while removing private spot references.
         jdbcTemplate.update("UPDATE day_schedule SET spot_user_id = NULL WHERE spot_user_id IN (SELECT id FROM spot_user WHERE user_id = ?)", userId);

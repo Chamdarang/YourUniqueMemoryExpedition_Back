@@ -25,6 +25,8 @@ public interface SpotUserRepository extends JpaRepository<SpotUser, Long> {
             "WHERE su.userId = :userId " +
             "AND (:isVisit IS NULL OR su.isVisit = :isVisit) " +
             "AND (:spotType IS NULL OR su.spotType = :spotType) " +
+            "AND (:groupId IS NULL OR EXISTS (SELECT g.id FROM SpotUser member JOIN member.spotGroup g WHERE member.id = su.id AND g.id = :groupId AND g.userId = :userId)) " +
+            "AND (:ungrouped = false OR su.spotGroup IS EMPTY) " +
             "AND (:keyword IS NULL OR :keyword = '' OR " +
             "(s.spotName LIKE CONCAT('%', :keyword, '%') OR " +
             "su.customName LIKE CONCAT('%', :keyword, '%') OR " +
@@ -34,6 +36,8 @@ public interface SpotUserRepository extends JpaRepository<SpotUser, Long> {
             @Param("keyword") String keyword,
             @Param("spotType") SpotType spotType,
             @Param("isVisit") Boolean isVisit,
+            @Param("groupId") Long groupId,
+            @Param("ungrouped") boolean ungrouped,
             Pageable pageable);
 
     @Query(value = "SELECT su.* FROM spot_user su " +

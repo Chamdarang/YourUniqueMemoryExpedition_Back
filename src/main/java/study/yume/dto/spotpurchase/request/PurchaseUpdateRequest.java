@@ -16,7 +16,8 @@ public record PurchaseUpdateRequest(
         BigDecimal price,
         String currency,
         LocalDate acquiredDate,
-        String note
+        String note,
+        Long recordVersion
 
 ) {
 }

@@ -8,6 +8,8 @@ public record SpotGetFilteredRequest(
         Double radius,
         Boolean isVisit,
         SpotType spotType,
-        String keyword
+        String keyword,
+        Long groupId,
+        Boolean ungrouped
 ) {
 }
